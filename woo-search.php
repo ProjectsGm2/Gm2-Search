@@ -160,7 +160,7 @@ add_filter('posts_groupby', 'woo_search_opt_groupby', 20, 2);
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
  */
 function gm2_search_register_elementor_widget( $widgets_manager ) {
-    if ( ! class_exists( '\\Elementor\\Widget_Search' ) ) {
+    if ( ! class_exists( '\\Elementor\\Widget_Base' ) ) {
         return;
     }
 
