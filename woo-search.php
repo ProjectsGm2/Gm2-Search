@@ -155,3 +155,17 @@ function woo_search_opt_groupby( $groupby, $wp_query ) {
     return $groupby;
 }
 add_filter('posts_groupby', 'woo_search_opt_groupby', 20, 2);
+
+/**
+ * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
+ */
+function gm2_search_register_elementor_widget( $widgets_manager ) {
+    if ( ! class_exists( '\\Elementor\\Widget_Base' ) ) {
+        return;
+    }
+
+    require_once plugin_dir_path( __FILE__ ) . 'includes/class-gm2-elementor-search-widget.php';
+
+    $widgets_manager->register( new \Gm2_Search_Elementor_Widget() );
+}
+add_action( 'elementor/widgets/register', 'gm2_search_register_elementor_widget' );
