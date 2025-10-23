@@ -7,7 +7,7 @@
     --gm2-search-control-padding-x: 16px;
     --gm2-search-control-gap: 0px;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     width: 100%;
     background-color: #f4f5f7;
     border: 1px solid rgba(24, 31, 43, 0.12);
@@ -36,7 +36,7 @@
 .elementor-search-form__category {
     flex: 0 0 auto;
     display: flex;
-    align-items: center;
+    align-items: stretch;
     min-height: var(--gm2-search-control-height);
 }
 
@@ -45,7 +45,7 @@
     min-width: 160px;
     height: 100%;
     display: flex;
-    align-items: center;
+    align-items: stretch;
 }
 
 .gm2-category-filter__toggle {
