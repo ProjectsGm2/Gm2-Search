@@ -63,6 +63,7 @@
     gap: 8px;
     height: 100%;
     min-height: var(--gm2-search-control-height);
+    line-height: calc(var(--gm2-search-control-height) - 2px);
     box-sizing: border-box;
     background-color: inherit;
 }
@@ -195,18 +196,17 @@
     border: none !important;
     background-color: transparent !important;
     font-size: 16px;
-    line-height: 1.5;
+    line-height: calc(var(--gm2-search-control-height) - 2px);
     color: inherit;
     min-height: var(--gm2-search-control-height);
     box-sizing: border-box;
     display: block;
     height: var(--gm2-search-control-height);
-    padding-left: var(--gm2-search-control-padding-x);
-    padding-right: var(--gm2-search-control-padding-x);
-    padding-top: calc((var(--gm2-search-control-height) - 1.5em) / 2);
-    padding-bottom: calc((var(--gm2-search-control-height) - 1.5em) / 2);
-    padding-top: max(0px, calc((var(--gm2-search-control-height) - 1.5em) / 2));
-    padding-bottom: max(0px, calc((var(--gm2-search-control-height) - 1.5em) / 2));
+    padding: 0 var(--gm2-search-control-padding-x);
+}
+
+.elementor-search-form__input::placeholder {
+    line-height: inherit;
 }
 
 .elementor-search-form__category-select {
