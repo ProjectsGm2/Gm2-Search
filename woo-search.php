@@ -1,12 +1,15 @@
 <?php
 /**
- * Plugin Name: Woo Search Optimized
- * Plugin URI:  https://gm2web.com/
- * Description: Optimized WooCommerce product search to include product title, price, description, attributes, and SKU with weighted ranking.
- * Version:     1.8.1
- * Author:      Your Name
- * Author URI:  https://gm2web.com/
- * License:     GPL2
+ * Plugin Name:       Woo Search Optimized
+ * Plugin URI:        https://gm2web.com/
+ * Description:       Optimized WooCommerce product search that includes product title, price, description, attributes, and SKU with weighted ranking.
+ * Version:           1.8.1
+ * Author:            GM2 Web
+ * Author URI:        https://gm2web.com/
+ * License:           GPL-2.0-or-later
+ * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain:       woo-search-optimized
+ * Domain Path:       /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
