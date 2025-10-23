@@ -498,6 +498,11 @@ function gm2_search_get_active_query_args() {
         }
     }
 
+    $search_query = get_query_var( 's' );
+    if ( is_string( $search_query ) && '' !== $search_query ) {
+        $args['s'] = $search_query;
+    }
+
     $category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
     if ( ! empty( $category_slugs ) ) {
         $args['gm2_category_filter'] = implode( ',', $category_slugs );
