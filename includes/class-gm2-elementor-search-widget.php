@@ -12,6 +12,10 @@ use Elementor\Icons_Manager;
 use Elementor\Group_Control_Background;
 
 class Gm2_Search_Elementor_Widget extends Widget_Base {
+    public function get_style_depends() {
+        return [ 'elementor-frontend', 'elementor-search-form' ];
+    }
+
     public function get_name() {
         return 'gm2-search-bar';
     }

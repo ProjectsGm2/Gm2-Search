@@ -169,6 +169,33 @@ function gm2_search_register_elementor_widget( $widgets_manager ) {
 
     require_once plugin_dir_path( __FILE__ ) . 'includes/class-gm2-elementor-search-widget.php';
 
-    $widgets_manager->register( new \Gm2_Search_Elementor_Widget() );
+    $widget = new \Gm2_Search_Elementor_Widget();
+
+    if ( method_exists( $widgets_manager, 'register' ) ) {
+        $widgets_manager->register( $widget );
+        return;
+    }
+
+    if ( method_exists( $widgets_manager, 'register_widget_type' ) ) {
+        $widgets_manager->register_widget_type( $widget );
+    }
 }
 add_action( 'elementor/widgets/register', 'gm2_search_register_elementor_widget' );
+
+/**
+ * Fallback registration for Elementor versions prior to 3.5 where the
+ * `elementor/widgets/register` action and `register()` method are not
+ * available on the widgets manager.
+ */
+function gm2_search_register_elementor_widget_legacy() {
+    if ( did_action( 'elementor/widgets/register' ) ) {
+        return;
+    }
+
+    if ( ! class_exists( '\\Elementor\\Plugin' ) ) {
+        return;
+    }
+
+    gm2_search_register_elementor_widget( \Elementor\Plugin::instance()->widgets_manager );
+}
+add_action( 'elementor/widgets/widgets_registered', 'gm2_search_register_elementor_widget_legacy' );
