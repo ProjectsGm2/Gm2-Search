@@ -219,6 +219,131 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'label' => __( 'Post Type', 'woo-search-optimized' ),
                 'type' => Controls_Manager::TEXT,
                 'placeholder' => __( 'Leave empty for all post types', 'woo-search-optimized' ),
+                'description' => __( 'Deprecated. Use the Source control below for new configurations.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'heading_query_settings',
+            [
+                'type' => Controls_Manager::HEADING,
+                'label' => __( 'Query Settings', 'woo-search-optimized' ),
+                'separator' => 'before',
+            ]
+        );
+
+        $this->add_control(
+            'query_source',
+            [
+                'label' => __( 'Source', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT2,
+                'options' => $this->get_post_type_options(),
+                'multiple' => true,
+                'label_block' => true,
+                'description' => __( 'Select one or more post types to include in search results. Leave empty to search all public post types.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'include_posts',
+            [
+                'label' => __( 'Include Posts', 'woo-search-optimized' ),
+                'type' => Controls_Manager::TEXTAREA,
+                'rows' => 3,
+                'placeholder' => __( 'Comma-separated post IDs (e.g. 12,34,56)', 'woo-search-optimized' ),
+                'description' => __( 'Limit the results to specific post IDs.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'exclude_posts',
+            [
+                'label' => __( 'Exclude Posts', 'woo-search-optimized' ),
+                'type' => Controls_Manager::TEXTAREA,
+                'rows' => 3,
+                'placeholder' => __( 'Comma-separated post IDs (e.g. 12,34,56)', 'woo-search-optimized' ),
+                'description' => __( 'Exclude specific post IDs from the results.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'include_categories',
+            [
+                'label' => __( 'Include Categories', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT2,
+                'multiple' => true,
+                'label_block' => true,
+                'options' => $this->get_category_control_options(),
+                'description' => __( 'Restrict results to the selected categories.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'exclude_categories',
+            [
+                'label' => __( 'Exclude Categories', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT2,
+                'multiple' => true,
+                'label_block' => true,
+                'options' => $this->get_category_control_options(),
+                'description' => __( 'Exclude the selected categories from the results.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'date_range',
+            [
+                'label' => __( 'Date', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT,
+                'options' => [
+                    '' => __( 'All time', 'woo-search-optimized' ),
+                    'past_day' => __( 'Past Day', 'woo-search-optimized' ),
+                    'past_week' => __( 'Past Week', 'woo-search-optimized' ),
+                    'past_month' => __( 'Past Month', 'woo-search-optimized' ),
+                    'past_year' => __( 'Past Year', 'woo-search-optimized' ),
+                ],
+                'default' => '',
+                'description' => __( 'Filter results by publish date.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
+            'order_by',
+            [
+                'label' => __( 'Order By', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT,
+                'options' => [
+                    '' => __( 'Default (Relevance)', 'woo-search-optimized' ),
+                    'date' => __( 'Date', 'woo-search-optimized' ),
+                    'title' => __( 'Title', 'woo-search-optimized' ),
+                    'price' => __( 'Price', 'woo-search-optimized' ),
+                    'rand' => __( 'Random', 'woo-search-optimized' ),
+                ],
+                'default' => '',
+            ]
+        );
+
+        $this->add_control(
+            'order',
+            [
+                'label' => __( 'Order', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT,
+                'options' => [
+                    '' => __( 'Default', 'woo-search-optimized' ),
+                    'ASC' => __( 'Ascending', 'woo-search-optimized' ),
+                    'DESC' => __( 'Descending', 'woo-search-optimized' ),
+                ],
+                'default' => '',
+            ]
+        );
+
+        $this->add_control(
+            'query_id',
+            [
+                'label' => __( 'Query ID', 'woo-search-optimized' ),
+                'type' => Controls_Manager::TEXT,
+                'placeholder' => __( 'Enter a query ID', 'woo-search-optimized' ),
+                'description' => __( 'Use this ID to target the search query in custom code (e.g. hooks).', 'woo-search-optimized' ),
             ]
         );
 
@@ -602,6 +727,15 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $query_var   = ! empty( $settings['query_var'] ) ? sanitize_key( $settings['query_var'] ) : 's';
         $placeholder = isset( $settings['placeholder'] ) ? $settings['placeholder'] : '';
         $post_type   = ! empty( $settings['search_post_type'] ) ? $settings['search_post_type'] : '';
+        $selected_post_types = $this->prepare_post_types_for_render( isset( $settings['query_source'] ) ? $settings['query_source'] : [] );
+        $include_post_ids = $this->parse_ids_setting( isset( $settings['include_posts'] ) ? $settings['include_posts'] : '' );
+        $exclude_post_ids = $this->parse_ids_setting( isset( $settings['exclude_posts'] ) ? $settings['exclude_posts'] : '' );
+        $include_category_ids = $this->parse_select_setting( isset( $settings['include_categories'] ) ? $settings['include_categories'] : [] );
+        $exclude_category_ids = $this->parse_select_setting( isset( $settings['exclude_categories'] ) ? $settings['exclude_categories'] : [] );
+        $date_range = $this->sanitize_date_range_value( isset( $settings['date_range'] ) ? $settings['date_range'] : '' );
+        $order_by = $this->sanitize_order_by_value( isset( $settings['order_by'] ) ? $settings['order_by'] : '' );
+        $order_direction = $this->sanitize_order_value( isset( $settings['order'] ) ? $settings['order'] : '' );
+        $query_id = $this->sanitize_query_id( isset( $settings['query_id'] ) ? $settings['query_id'] : '' );
         $show_button = ( isset( $settings['show_submit_button'] ) && 'yes' === $settings['show_submit_button'] );
         $submit_type = $show_button ? $settings['submit_type'] : '';
         $icon_position = isset( $settings['icon_position'] ) ? $settings['icon_position'] : 'before';
@@ -708,8 +842,36 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                         </span>
                     </button>
                 <?php endif; ?>
-                <?php if ( ! empty( $post_type ) ) : ?>
+                <?php if ( ! empty( $selected_post_types ) ) : ?>
+                    <?php foreach ( $selected_post_types as $selected_post_type ) : ?>
+                        <input type="hidden" name="post_type[]" value="<?php echo esc_attr( $selected_post_type ); ?>" />
+                    <?php endforeach; ?>
+                <?php elseif ( ! empty( $post_type ) ) : ?>
                     <input type="hidden" name="post_type" value="<?php echo esc_attr( $post_type ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $include_post_ids ) ) : ?>
+                    <input type="hidden" name="gm2_include_posts" value="<?php echo esc_attr( implode( ',', $include_post_ids ) ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $exclude_post_ids ) ) : ?>
+                    <input type="hidden" name="gm2_exclude_posts" value="<?php echo esc_attr( implode( ',', $exclude_post_ids ) ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $include_category_ids ) ) : ?>
+                    <input type="hidden" name="gm2_include_categories" value="<?php echo esc_attr( implode( ',', $include_category_ids ) ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $exclude_category_ids ) ) : ?>
+                    <input type="hidden" name="gm2_exclude_categories" value="<?php echo esc_attr( implode( ',', $exclude_category_ids ) ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $date_range ) ) : ?>
+                    <input type="hidden" name="gm2_date_range" value="<?php echo esc_attr( $date_range ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $order_by ) ) : ?>
+                    <input type="hidden" name="gm2_orderby" value="<?php echo esc_attr( $order_by ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $order_direction ) ) : ?>
+                    <input type="hidden" name="gm2_order" value="<?php echo esc_attr( $order_direction ); ?>" />
+                <?php endif; ?>
+                <?php if ( ! empty( $query_id ) ) : ?>
+                    <input type="hidden" name="gm2_query_id" value="<?php echo esc_attr( $query_id ); ?>" />
                 <?php endif; ?>
             </div>
         </form>
@@ -725,6 +887,19 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const showCategoryFilter = 'yes' === settings.show_category_filter;
         const categoryPlaceholder = settings.category_filter_placeholder ? settings.category_filter_placeholder : '<?php echo esc_js( __( 'All categories', 'woo-search-optimized' ) ); ?>';
         const categoryData = <?php echo wp_json_encode( $this->get_category_data_map() ); ?>;
+        const parseMultiValue = function( value ) {
+            if ( Array.isArray( value ) ) {
+                return value;
+            }
+            if ( value && 'object' === typeof value ) {
+                return Object.keys( value );
+            }
+            if ( value ) {
+                return [ value ];
+            }
+
+            return [];
+        };
         let selectedCategoryIds = [];
         if ( settings.category_filter_terms ) {
             if ( Array.isArray( settings.category_filter_terms ) ) {
@@ -740,6 +915,16 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             'elementor-search-form',
             'elementor-search-form--skin-' + settings.skin,
         ];
+
+        const sourcePostTypes = parseMultiValue( settings.query_source );
+        const includeCategoriesValue = parseMultiValue( settings.include_categories ).join( ',' );
+        const excludeCategoriesValue = parseMultiValue( settings.exclude_categories ).join( ',' );
+        const includePostsValue = settings.include_posts ? settings.include_posts : '';
+        const excludePostsValue = settings.exclude_posts ? settings.exclude_posts : '';
+        const dateRangeValue = settings.date_range ? settings.date_range : '';
+        const orderByValue = settings.order_by ? settings.order_by : '';
+        const orderValue = settings.order ? settings.order : '';
+        const queryIdValue = settings.query_id ? settings.query_id : '';
 
         if ( showButton ) {
             if ( 'text_icon' === submitType ) {
@@ -814,12 +999,149 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                         </span>
                     </button>
                 <# } #>
-                <# if ( settings.search_post_type ) { #>
+                <# if ( sourcePostTypes.length ) { #>
+                    <# sourcePostTypes.forEach( function( postType ) { #>
+                        <input type="hidden" name="post_type[]" value="{{ postType }}" />
+                    <# } ); #>
+                <# } else if ( settings.search_post_type ) { #>
                     <input type="hidden" name="post_type" value="{{ settings.search_post_type }}" />
+                <# } #>
+                <# if ( includePostsValue ) { #>
+                    <input type="hidden" name="gm2_include_posts" value="{{ includePostsValue }}" />
+                <# } #>
+                <# if ( excludePostsValue ) { #>
+                    <input type="hidden" name="gm2_exclude_posts" value="{{ excludePostsValue }}" />
+                <# } #>
+                <# if ( includeCategoriesValue ) { #>
+                    <input type="hidden" name="gm2_include_categories" value="{{ includeCategoriesValue }}" />
+                <# } #>
+                <# if ( excludeCategoriesValue ) { #>
+                    <input type="hidden" name="gm2_exclude_categories" value="{{ excludeCategoriesValue }}" />
+                <# } #>
+                <# if ( dateRangeValue ) { #>
+                    <input type="hidden" name="gm2_date_range" value="{{ dateRangeValue }}" />
+                <# } #>
+                <# if ( orderByValue ) { #>
+                    <input type="hidden" name="gm2_orderby" value="{{ orderByValue }}" />
+                <# } #>
+                <# if ( orderValue ) { #>
+                    <input type="hidden" name="gm2_order" value="{{ orderValue }}" />
+                <# } #>
+                <# if ( queryIdValue ) { #>
+                    <input type="hidden" name="gm2_query_id" value="{{ queryIdValue }}" />
                 <# } #>
             </div>
         </form>
         <?php
+    }
+
+    private function get_post_type_options() {
+        $post_types = get_post_types(
+            [
+                'public' => true,
+            ],
+            'objects'
+        );
+
+        $options = [];
+
+        foreach ( $post_types as $post_type => $object ) {
+            $options[ $post_type ] = isset( $object->labels->singular_name ) ? $object->labels->singular_name : $post_type;
+        }
+
+        return $options;
+    }
+
+    private function prepare_post_types_for_render( $value ) {
+        if ( empty( $value ) ) {
+            return [];
+        }
+
+        if ( is_array( $value ) ) {
+            $post_types = $value;
+        } else {
+            $post_types = [ $value ];
+        }
+
+        $allowed_post_types = array_keys( $this->get_post_type_options() );
+
+        $post_types = array_map( 'sanitize_key', (array) $post_types );
+        $post_types = array_intersect( $post_types, $allowed_post_types );
+
+        return array_values( $post_types );
+    }
+
+    private function parse_ids_setting( $value ) {
+        if ( empty( $value ) ) {
+            return [];
+        }
+
+        if ( is_array( $value ) ) {
+            $ids = $value;
+        } else {
+            $ids = preg_split( '/[\s,]+/', (string) $value );
+        }
+
+        $ids = array_map( 'absint', (array) $ids );
+        $ids = array_filter( $ids );
+
+        return array_values( $ids );
+    }
+
+    private function parse_select_setting( $value ) {
+        if ( empty( $value ) ) {
+            return [];
+        }
+
+        if ( is_array( $value ) ) {
+            $values = $value;
+        } else {
+            $values = [ $value ];
+        }
+
+        $values = array_map( 'intval', (array) $values );
+        $values = array_filter( $values );
+
+        return array_values( $values );
+    }
+
+    private function sanitize_date_range_value( $value ) {
+        $allowed = [ '', 'past_day', 'past_week', 'past_month', 'past_year' ];
+        $value = (string) $value;
+
+        if ( ! in_array( $value, $allowed, true ) ) {
+            return '';
+        }
+
+        return $value;
+    }
+
+    private function sanitize_order_by_value( $value ) {
+        $allowed = [ '', 'date', 'title', 'price', 'rand' ];
+        $value = (string) $value;
+
+        if ( ! in_array( $value, $allowed, true ) ) {
+            return '';
+        }
+
+        return $value;
+    }
+
+    private function sanitize_order_value( $value ) {
+        $allowed = [ 'ASC', 'DESC' ];
+        $value = strtoupper( (string) $value );
+
+        if ( ! in_array( $value, $allowed, true ) ) {
+            return '';
+        }
+
+        return $value;
+    }
+
+    private function sanitize_query_id( $value ) {
+        $value = sanitize_key( (string) $value );
+
+        return $value;
     }
 
     private function get_category_control_options() {

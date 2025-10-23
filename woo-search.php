@@ -138,14 +138,40 @@ add_filter('posts_fields', 'woo_search_opt_relevance', 20, 2);
  */
 function woo_search_opt_orderby( $orderby, $wp_query ) {
     global $wpdb;
-    
+
     $search_term = $wp_query->get('s');
     if ( empty( $search_term ) ) {
         return $orderby;
     }
-    
-    $orderby = "relevance DESC, {$wpdb->posts}.post_title ASC";
-    return $orderby;
+
+    $custom_orderby = $wp_query->get( 'gm2_orderby' );
+    $custom_order = strtoupper( $wp_query->get( 'gm2_order' ) );
+
+    if ( ! in_array( $custom_order, [ 'ASC', 'DESC' ], true ) ) {
+        $custom_order = 'DESC';
+    }
+
+    if ( $custom_orderby ) {
+        switch ( $custom_orderby ) {
+            case 'date':
+                return "{$wpdb->posts}.post_date {$custom_order}";
+            case 'title':
+                return "{$wpdb->posts}.post_title {$custom_order}";
+            case 'price':
+                return "CAST(woo_pm_price.meta_value AS DECIMAL(10,4)) {$custom_order}";
+            case 'rand':
+                return 'RAND()';
+            case 'relevance':
+            default:
+                return "relevance {$custom_order}, {$wpdb->posts}.post_title ASC";
+        }
+    }
+
+    if ( 'RAND' === strtoupper( $wp_query->get( 'orderby' ) ) ) {
+        return 'RAND()';
+    }
+
+    return "relevance DESC, {$wpdb->posts}.post_title ASC";
 }
 add_filter('posts_orderby', 'woo_search_opt_orderby', 20, 2);
 
@@ -158,6 +184,155 @@ function woo_search_opt_groupby( $groupby, $wp_query ) {
     return $groupby;
 }
 add_filter('posts_groupby', 'woo_search_opt_groupby', 20, 2);
+
+/**
+ * Parse a comma or space separated list of IDs from a query variable.
+ *
+ * @param string $key Query parameter key.
+ * @return array<int>
+ */
+function gm2_search_get_request_ids( $key ) {
+    if ( ! isset( $_GET[ $key ] ) ) {
+        return [];
+    }
+
+    $raw = wp_unslash( $_GET[ $key ] );
+
+    if ( is_array( $raw ) ) {
+        $parts = $raw;
+    } else {
+        $parts = preg_split( '/[\s,]+/', (string) $raw );
+    }
+
+    $parts = array_map( 'absint', (array) $parts );
+    $parts = array_filter( $parts );
+
+    return array_values( $parts );
+}
+
+/**
+ * Convert a preset date range slug into a WP_Query-compatible date query.
+ *
+ * @param string $range Range slug.
+ * @return array<string, mixed>|null
+ */
+function gm2_search_build_date_query( $range ) {
+    $now = current_time( 'timestamp' );
+    $after = null;
+
+    switch ( $range ) {
+        case 'past_day':
+            $after = $now - DAY_IN_SECONDS;
+            break;
+        case 'past_week':
+            $after = $now - WEEK_IN_SECONDS;
+            break;
+        case 'past_month':
+            $after = strtotime( '-1 month', $now );
+            break;
+        case 'past_year':
+            $after = strtotime( '-1 year', $now );
+            break;
+        default:
+            $after = null;
+            break;
+    }
+
+    if ( ! $after ) {
+        return null;
+    }
+
+    return [
+        'after' => gmdate( 'Y-m-d H:i:s', $after ),
+        'inclusive' => true,
+        'column' => 'post_date',
+    ];
+}
+
+/**
+ * Apply query configuration provided by the Elementor widget.
+ */
+function gm2_search_apply_query_parameters( $query ) {
+    if ( is_admin() || ! $query->is_main_query() || ! $query->is_search() ) {
+        return;
+    }
+
+    $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
+    if ( ! empty( $include_posts ) ) {
+        $query->set( 'post__in', $include_posts );
+    }
+
+    $exclude_posts = gm2_search_get_request_ids( 'gm2_exclude_posts' );
+    if ( ! empty( $exclude_posts ) ) {
+        $query->set( 'post__not_in', $exclude_posts );
+    }
+
+    $include_categories = gm2_search_get_request_ids( 'gm2_include_categories' );
+    $exclude_categories = gm2_search_get_request_ids( 'gm2_exclude_categories' );
+
+    if ( ! empty( $include_categories ) || ! empty( $exclude_categories ) ) {
+        $tax_query = (array) $query->get( 'tax_query' );
+
+        if ( ! empty( $include_categories ) ) {
+            $tax_query[] = [
+                'taxonomy' => 'category',
+                'field' => 'term_id',
+                'terms' => $include_categories,
+                'operator' => 'IN',
+            ];
+        }
+
+        if ( ! empty( $exclude_categories ) ) {
+            $tax_query[] = [
+                'taxonomy' => 'category',
+                'field' => 'term_id',
+                'terms' => $exclude_categories,
+                'operator' => 'NOT IN',
+            ];
+        }
+
+        $query->set( 'tax_query', $tax_query );
+    }
+
+    $date_range = isset( $_GET['gm2_date_range'] ) ? sanitize_text_field( wp_unslash( $_GET['gm2_date_range'] ) ) : '';
+    if ( ! empty( $date_range ) ) {
+        $date_query = gm2_search_build_date_query( $date_range );
+        if ( $date_query ) {
+            $query->set( 'date_query', [ $date_query ] );
+        }
+    }
+
+    $order_by = isset( $_GET['gm2_orderby'] ) ? sanitize_key( wp_unslash( $_GET['gm2_orderby'] ) ) : '';
+    $order = isset( $_GET['gm2_order'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_GET['gm2_order'] ) ) ) : '';
+
+    if ( $order_by ) {
+        $query->set( 'gm2_orderby', $order_by );
+
+        if ( 'rand' === $order_by ) {
+            $query->set( 'orderby', 'rand' );
+        } elseif ( in_array( $order_by, [ 'date', 'title' ], true ) ) {
+            $query->set( 'orderby', $order_by );
+        } elseif ( 'price' === $order_by ) {
+            $query->set( 'orderby', 'meta_value_num' );
+            $query->set( 'meta_key', '_price' );
+        }
+    }
+
+    if ( in_array( $order, [ 'ASC', 'DESC' ], true ) ) {
+        $query->set( 'gm2_order', $order );
+        $query->set( 'order', $order );
+    }
+
+    $query_id = isset( $_GET['gm2_query_id'] ) ? sanitize_key( wp_unslash( $_GET['gm2_query_id'] ) ) : '';
+    if ( ! empty( $query_id ) ) {
+        $query->set( 'gm2_query_id', $query_id );
+        /**
+         * Allow developers to hook into the customised search query.
+         */
+        do_action( 'gm2_search/query/' . $query_id, $query );
+    }
+}
+add_action( 'pre_get_posts', 'gm2_search_apply_query_parameters' );
 
 /**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
