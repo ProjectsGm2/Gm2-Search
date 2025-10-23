@@ -497,3 +497,15 @@ function gm2_search_register_elementor_widget_styles() {
     }
 }
 add_action( 'init', 'gm2_search_register_elementor_widget_styles' );
+
+/**
+ * Ensure the widget stylesheet is loaded anywhere Elementor renders the widget,
+ * including the editor preview iframe.
+ */
+function gm2_search_enqueue_elementor_widget_styles() {
+    if ( wp_style_is( 'elementor-search-form', 'registered' ) ) {
+        wp_enqueue_style( 'elementor-search-form' );
+    }
+}
+add_action( 'elementor/frontend/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
+add_action( 'elementor/editor/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
