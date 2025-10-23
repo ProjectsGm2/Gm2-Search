@@ -16,6 +16,10 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         return [ 'elementor-frontend', 'elementor-search-form' ];
     }
 
+    public function get_script_depends() {
+        return [ 'gm2-search-widget' ];
+    }
+
     public function get_name() {
         return 'gm2-search-bar';
     }
@@ -81,6 +85,23 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         );
 
         $this->add_control(
+            'submit_trigger',
+            [
+                'label' => __( 'Submit Trigger', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT,
+                'default' => 'click_submit',
+                'options' => [
+                    'click_submit' => __( 'Submit button', 'woo-search-optimized' ),
+                    'key_enter'    => __( 'Enter key', 'woo-search-optimized' ),
+                    'both'         => __( 'Both', 'woo-search-optimized' ),
+                ],
+                'condition' => [
+                    'show_submit_button' => 'yes',
+                ],
+            ]
+        );
+
+        $this->add_control(
             'submit_type',
             [
                 'label' => __( 'Submit Type', 'woo-search-optimized' ),
@@ -93,6 +114,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 ],
                 'condition' => [
                     'show_submit_button' => 'yes',
+                    'submit_trigger!' => 'key_enter',
                 ],
             ]
         );
@@ -106,6 +128,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'placeholder' => __( 'Enter button text', 'woo-search-optimized' ),
                 'condition' => [
                     'show_submit_button' => 'yes',
+                    'submit_trigger!' => 'key_enter',
                     'submit_type!' => 'icon',
                 ],
             ]
@@ -122,6 +145,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 ],
                 'condition' => [
                     'show_submit_button' => 'yes',
+                    'submit_trigger!' => 'key_enter',
                     'submit_type!' => 'text',
                 ],
             ]
@@ -146,6 +170,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'toggle' => false,
                 'condition' => [
                     'show_submit_button' => 'yes',
+                    'submit_trigger!' => 'key_enter',
                     'submit_type' => [ 'text_icon' ],
                 ],
             ]
@@ -502,6 +527,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'tab' => Controls_Manager::TAB_STYLE,
                 'condition' => [
                     'show_submit_button' => 'yes',
+                    'submit_trigger!' => 'key_enter',
                 ],
             ]
         );
@@ -513,6 +539,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'selector' => '{{WRAPPER}} .elementor-search-form__submit',
                 'condition' => [
                     'submit_type!' => 'icon',
+                    'submit_trigger!' => 'key_enter',
                 ],
             ]
         );
@@ -533,7 +560,21 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
                     '{{WRAPPER}} .elementor-search-form__submit' => 'color: {{VALUE}};',
-                    '{{WRAPPER}} .elementor-search-form__submit svg' => 'fill: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'button_icon_color',
+            [
+                'label' => __( 'Icon Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .elementor-search-form__submit .elementor-button-icon' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .elementor-search-form__submit .elementor-button-icon svg' => 'fill: {{VALUE}};',
+                ],
+                'condition' => [
+                    'submit_type!' => 'text',
                 ],
             ]
         );
@@ -573,7 +614,21 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
                     '{{WRAPPER}} .elementor-search-form__submit:hover, {{WRAPPER}} .elementor-search-form__submit:focus' => 'color: {{VALUE}};',
-                    '{{WRAPPER}} .elementor-search-form__submit:hover svg, {{WRAPPER}} .elementor-search-form__submit:focus svg' => 'fill: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'button_icon_color_hover',
+            [
+                'label' => __( 'Icon Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .elementor-search-form__submit:hover .elementor-button-icon, {{WRAPPER}} .elementor-search-form__submit:focus .elementor-button-icon' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .elementor-search-form__submit:hover .elementor-button-icon svg, {{WRAPPER}} .elementor-search-form__submit:focus .elementor-button-icon svg' => 'fill: {{VALUE}};',
+                ],
+                'condition' => [
+                    'submit_type!' => 'text',
                 ],
             ]
         );
@@ -643,6 +698,9 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                     '{{WRAPPER}} .elementor-search-form__submit' => 'margin-left: {{SIZE}}{{UNIT}};',
                     '{{WRAPPER}} .elementor-search-form--icon-after .elementor-search-form__submit' => 'margin-left: 0; margin-right: {{SIZE}}{{UNIT}};',
                 ],
+                'condition' => [
+                    'submit_trigger!' => 'key_enter',
+                ],
             ]
         );
 
@@ -662,7 +720,29 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 ],
                 'condition' => [
                     'show_submit_button' => 'yes',
-                    'submit_type!' => 'text',
+                    'submit_trigger!' => 'key_enter',
+                    'submit_type' => [ 'icon', 'text_icon' ],
+                ],
+            ]
+        );
+
+        $this->add_responsive_control(
+            'button_icon_gap',
+            [
+                'label' => __( 'Icon Gap', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SLIDER,
+                'size_units' => [ 'px', 'em' ],
+                'range' => [
+                    'px' => [ 'min' => 0, 'max' => 60 ],
+                    'em' => [ 'min' => 0, 'max' => 5 ],
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .elementor-search-form__submit' => '--gm2-search-button-icon-gap: {{SIZE}}{{UNIT}};',
+                ],
+                'condition' => [
+                    'show_submit_button' => 'yes',
+                    'submit_trigger!' => 'key_enter',
+                    'submit_type' => [ 'icon', 'text_icon' ],
                 ],
             ]
         );
@@ -736,8 +816,11 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $order_by = $this->sanitize_order_by_value( isset( $settings['order_by'] ) ? $settings['order_by'] : '' );
         $order_direction = $this->sanitize_order_value( isset( $settings['order'] ) ? $settings['order'] : '' );
         $query_id = $this->sanitize_query_id( isset( $settings['query_id'] ) ? $settings['query_id'] : '' );
-        $show_button = ( isset( $settings['show_submit_button'] ) && 'yes' === $settings['show_submit_button'] );
-        $submit_type = $show_button ? $settings['submit_type'] : '';
+        $submit_trigger = isset( $settings['submit_trigger'] ) ? $settings['submit_trigger'] : 'click_submit';
+        $show_button_setting = ( isset( $settings['show_submit_button'] ) && 'yes' === $settings['show_submit_button'] );
+        $show_button = $show_button_setting && 'key_enter' !== $submit_trigger;
+        $form_submit_trigger = $show_button ? $submit_trigger : 'key_enter';
+        $submit_type = $show_button ? ( isset( $settings['submit_type'] ) ? $settings['submit_type'] : 'text' ) : '';
         $icon_position = isset( $settings['icon_position'] ) ? $settings['icon_position'] : 'before';
         $button_icon = isset( $settings['button_icon'] ) ? $settings['button_icon'] : [];
         $has_icon    = ! empty( $button_icon['value'] );
@@ -776,6 +859,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $this->add_render_attribute( 'form', 'role', 'search' );
         $this->add_render_attribute( 'form', 'method', 'get' );
         $this->add_render_attribute( 'form', 'action', esc_url( home_url( '/' ) ) );
+        $this->add_render_attribute( 'form', 'data-submit-trigger', $form_submit_trigger );
 
         $this->add_render_attribute( 'input', 'type', 'search' );
         $this->add_render_attribute( 'input', 'name', $query_var );
@@ -882,8 +966,11 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         ?>
         <#
         const queryVar = settings.query_var ? settings.query_var : 's';
-        const showButton = 'yes' === settings.show_submit_button;
-        const submitType = showButton ? settings.submit_type : '';
+        const submitTrigger = settings.submit_trigger ? settings.submit_trigger : 'click_submit';
+        const showButtonSetting = 'yes' === settings.show_submit_button;
+        const showButton = showButtonSetting && 'key_enter' !== submitTrigger;
+        const submitType = showButton ? ( settings.submit_type ? settings.submit_type : 'text' ) : '';
+        const formSubmitTrigger = showButton ? submitTrigger : 'key_enter';
         const showCategoryFilter = 'yes' === settings.show_category_filter;
         const categoryPlaceholder = settings.category_filter_placeholder ? settings.category_filter_placeholder : '<?php echo esc_js( __( 'All categories', 'woo-search-optimized' ) ); ?>';
         const categoryData = <?php echo wp_json_encode( $this->get_category_data_map() ); ?>;
@@ -945,7 +1032,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         <?php $home_url = esc_url( home_url( '/' ) ); ?>
         <#
         const buttonClasses = [ 'elementor-search-form__submit' ];
-        if ( 'minimal' === settings.skin ) {
+        if ( showButton && 'minimal' === settings.skin ) {
             buttonClasses.push( 'elementor-search-form__submit--minimal' );
         }
         if ( showButton && 'text_icon' === submitType ) {
@@ -955,7 +1042,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const ariaLabel = settings.button_text ? settings.button_text : settings.placeholder;
         const categorySelectId = 'gm2-search-category-' + view.getID();
         #>
-        <form class="{{ wrapperClasses.join( ' ' ) }}" role="search" method="get" action="<?php echo $home_url; ?>">
+        <form class="{{ wrapperClasses.join( ' ' ) }}" role="search" method="get" action="<?php echo $home_url; ?>" data-submit-trigger="{{ formSubmitTrigger }}">
             <div class="elementor-search-form__container">
                 <# if ( showCategoryFilter && Object.keys( categoryData ).length ) { #>
                     <div class="elementor-search-form__category">
