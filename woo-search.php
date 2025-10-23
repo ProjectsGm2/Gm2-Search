@@ -428,6 +428,37 @@ function gm2_search_apply_query_parameters( $query ) {
 add_action( 'pre_get_posts', 'gm2_search_apply_query_parameters' );
 
 /**
+ * Ensure custom query variables are recognised by WordPress so they persist
+ * across pagination and other generated links.
+ *
+ * @param array<string> $public_query_vars Public query var names.
+ * @return array<string>
+ */
+function gm2_search_register_query_vars( $public_query_vars ) {
+    $gm2_vars = [
+        'gm2_include_posts',
+        'gm2_exclude_posts',
+        'gm2_include_categories',
+        'gm2_exclude_categories',
+        'gm2_category_filter',
+        'gm2_category_taxonomy',
+        'gm2_date_range',
+        'gm2_orderby',
+        'gm2_order',
+        'gm2_query_id',
+    ];
+
+    foreach ( $gm2_vars as $var ) {
+        if ( ! in_array( $var, $public_query_vars, true ) ) {
+            $public_query_vars[] = $var;
+        }
+    }
+
+    return $public_query_vars;
+}
+add_filter( 'query_vars', 'gm2_search_register_query_vars' );
+
+/**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
  */
 function gm2_search_register_elementor_widget( $widgets_manager ) {
