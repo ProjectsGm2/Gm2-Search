@@ -554,7 +554,7 @@ function gm2_search_get_active_query_args() {
  * @return string
  */
 function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape = true ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
-    if ( is_admin() || ! is_search() ) {
+    if ( is_admin() ) {
         return $result;
     }
 
@@ -567,6 +567,49 @@ function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escap
     return add_query_arg( $args, $result );
 }
 add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 10, 3 );
+
+/**
+ * Ensure active Gm2 query arguments are passed into paginate_links() so themes that rely on the
+ * helper inherit the widget filters via the standard add_args parameter instead of rewriting the
+ * generated HTML.
+ *
+ * @param array<string, mixed> $args Arguments provided to paginate_links().
+ * @return array<string, mixed>
+ */
+function gm2_search_merge_paginate_links_args( $args ) {
+    if ( is_admin() ) {
+        return $args;
+    }
+
+    $query_args = gm2_search_get_active_query_args();
+
+    if ( empty( $query_args ) ) {
+        return $args;
+    }
+
+    if ( empty( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args;
+        return $args;
+    }
+
+    if ( is_array( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args + $args['add_args'];
+        return $args;
+    }
+
+    if ( is_string( $args['add_args'] ) ) {
+        parse_str( $args['add_args'], $existing_args );
+        if ( ! is_array( $existing_args ) ) {
+            $existing_args = [];
+        }
+
+        $args['add_args'] = $query_args + $existing_args;
+        return $args;
+    }
+
+    return $args;
+}
+add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
 
 /**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
