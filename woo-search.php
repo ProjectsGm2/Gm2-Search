@@ -650,6 +650,117 @@ function gm2_search_merge_paginate_links_args( $args ) {
 add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
 
 /**
+ * Append the active search arguments to pagination markup emitted directly by paginate_links().
+ *
+ * Some themes filter the output HTML instead of relying on the add_args parameter, which can drop
+ * the Gm2-specific query vars. We rewrite the href attributes so every generated link keeps the
+ * current search context.
+ *
+ * @param string|array<int, string> $links Pagination output.
+ * @return string|array<int, string>
+ */
+function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
+    if ( is_admin() ) {
+        return $links;
+    }
+
+    $query_args = gm2_search_get_active_query_args();
+
+    if ( empty( $query_args ) ) {
+        return $links;
+    }
+
+    $charset     = get_bloginfo( 'charset' );
+    $query_keys  = array_keys( $query_args );
+    $rewrite_url = static function( $url ) use ( $query_args, $query_keys, $charset ) {
+        if ( ! is_string( $url ) || '' === $url ) {
+            return $url;
+        }
+
+        $decoded = html_entity_decode( $url, ENT_QUOTES, $charset );
+        $stripped = remove_query_arg( $query_keys, $decoded );
+        $updated  = add_query_arg( $query_args, $stripped );
+
+        return esc_url( $updated );
+    };
+
+    $rewrite_html = static function( $markup ) use ( $rewrite_url ) {
+        if ( ! is_string( $markup ) || '' === $markup || false === strpos( $markup, 'href=' ) ) {
+            return $markup;
+        }
+
+        return preg_replace_callback(
+            "/href=(['\"])([^'\"]*)\\1/",
+            static function( $matches ) use ( $rewrite_url ) {
+                $quote   = $matches[1];
+                $url     = $matches[2];
+                $updated = $rewrite_url( $url );
+
+                return 'href=' . $quote . $updated . $quote;
+            },
+            $markup
+        );
+    };
+
+    if ( is_array( $links ) ) {
+        foreach ( $links as $index => $markup ) {
+            $links[ $index ] = $rewrite_html( $markup );
+        }
+
+        return $links;
+    }
+
+    return $rewrite_html( $links );
+}
+add_filter( 'paginate_links', 'gm2_search_preserve_query_args_in_paginate_links_output', 10 );
+
+/**
+ * Ensure WooCommerce pagination arguments keep the active search filters.
+ *
+ * WooCommerce builds its own paginate_links() argument array and can override the add_args/base
+ * values we set elsewhere. We merge the current query vars into those values so product listings
+ * retain the user's filters when navigating between result pages.
+ *
+ * @param array<string, mixed> $args WooCommerce pagination arguments.
+ * @return array<string, mixed>
+ */
+function gm2_search_merge_woocommerce_pagination_args( $args ) {
+    if ( is_admin() ) {
+        return $args;
+    }
+
+    $query_args = gm2_search_get_active_query_args();
+
+    if ( empty( $query_args ) ) {
+        return $args;
+    }
+
+    if ( empty( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args;
+    } elseif ( is_array( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args + $args['add_args'];
+    } elseif ( is_string( $args['add_args'] ) ) {
+        parse_str( $args['add_args'], $existing_args );
+        if ( ! is_array( $existing_args ) ) {
+            $existing_args = [];
+        }
+
+        $args['add_args'] = $query_args + $existing_args;
+    }
+
+    if ( ! empty( $args['base'] ) && is_string( $args['base'] ) ) {
+        $charset   = get_bloginfo( 'charset' );
+        $query_keys = array_keys( $query_args );
+        $decoded  = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
+        $stripped = remove_query_arg( $query_keys, $decoded );
+        $args['base'] = esc_url_raw( add_query_arg( $query_args, $stripped ) );
+    }
+
+    return $args;
+}
+add_filter( 'woocommerce_pagination_args', 'gm2_search_merge_woocommerce_pagination_args', 15 );
+
+/**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
  */
 function gm2_search_register_elementor_widget( $widgets_manager ) {
