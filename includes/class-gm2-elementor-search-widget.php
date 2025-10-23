@@ -12,6 +12,13 @@ use Elementor\Icons_Manager;
 use Elementor\Group_Control_Background;
 
 class Gm2_Search_Elementor_Widget extends Widget_Base {
+    /**
+     * Active taxonomy used for category-related controls.
+     *
+     * @var string
+     */
+    private $category_taxonomy = '';
+
     public function get_style_depends() {
         return [ 'elementor-frontend', 'elementor-search-form' ];
     }
@@ -1127,6 +1134,8 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $button_icon = isset( $settings['button_icon'] ) ? $settings['button_icon'] : [];
         $has_icon    = ! empty( $button_icon['value'] );
         $show_category_filter = ( isset( $settings['show_category_filter'] ) && 'yes' === $settings['show_category_filter'] );
+        $category_taxonomy = $this->resolve_category_taxonomy( $settings, $selected_post_types, $post_type );
+        $this->set_category_taxonomy( $category_taxonomy );
         $category_placeholder = isset( $settings['category_filter_placeholder'] ) ? $settings['category_filter_placeholder'] : '';
         if ( '' === trim( (string) $category_placeholder ) ) {
             $category_placeholder = __( 'All categories', 'woo-search-optimized' );
@@ -1306,6 +1315,10 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 <?php endif; ?>
                 <?php if ( ! empty( $query_id ) ) : ?>
                     <input type="hidden" name="gm2_query_id" value="<?php echo esc_attr( $query_id ); ?>" />
+                <?php endif; ?>
+                <?php $active_taxonomy = $this->get_active_category_taxonomy(); ?>
+                <?php if ( $active_taxonomy ) : ?>
+                    <input type="hidden" name="gm2_category_taxonomy" value="<?php echo esc_attr( $active_taxonomy ); ?>" />
                 <?php endif; ?>
             </div>
         </form>
@@ -1501,6 +1514,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 <# if ( queryIdValue ) { #>
                     <input type="hidden" name="gm2_query_id" value="{{ queryIdValue }}" />
                 <# } #>
+                <input type="hidden" name="gm2_category_taxonomy" value="<?php echo esc_js( $this->get_active_category_taxonomy() ); ?>" />
             </div>
         </form>
         <?php
@@ -1656,7 +1670,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
 
     private function get_category_terms( $args = [] ) {
         $defaults = [
-            'taxonomy' => 'category',
+            'taxonomy' => $this->get_active_category_taxonomy(),
             'hide_empty' => false,
         ];
 
@@ -1689,6 +1703,73 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
     }
 
     private function get_category_query_var() {
-        return 'category_name';
+        $taxonomy = $this->get_active_category_taxonomy();
+        $taxonomy_object = get_taxonomy( $taxonomy );
+
+        if ( $taxonomy_object && ! empty( $taxonomy_object->query_var ) ) {
+            return $taxonomy_object->query_var;
+        }
+
+        if ( 'category' === $taxonomy ) {
+            return 'category_name';
+        }
+
+        return $taxonomy;
+    }
+
+    private function resolve_category_taxonomy( $settings, $selected_post_types, $post_type ) {
+        $post_types = [];
+
+        if ( ! empty( $selected_post_types ) ) {
+            $post_types = $selected_post_types;
+        } elseif ( ! empty( $post_type ) ) {
+            $post_types = [ $post_type ];
+        }
+
+        $post_types = array_unique( array_filter( array_map( 'sanitize_key', (array) $post_types ) ) );
+
+        $default_taxonomy = $this->get_default_category_taxonomy();
+        $taxonomy = $default_taxonomy;
+
+        if ( empty( $post_types ) ) {
+            $taxonomy = $default_taxonomy;
+        } elseif ( 1 === count( $post_types ) && in_array( 'post', $post_types, true ) ) {
+            $taxonomy = 'category';
+        } elseif ( in_array( 'post', $post_types, true ) ) {
+            $taxonomy = 'category';
+        } elseif ( taxonomy_exists( 'product_cat' ) && in_array( 'product', $post_types, true ) ) {
+            $taxonomy = 'product_cat';
+        }
+
+        return apply_filters( 'gm2_search_widget_category_taxonomy', $taxonomy, $settings, $post_types );
+    }
+
+    private function set_category_taxonomy( $taxonomy ) {
+        if ( taxonomy_exists( $taxonomy ) ) {
+            $this->category_taxonomy = $taxonomy;
+            return;
+        }
+
+        $this->category_taxonomy = '';
+    }
+
+    private function get_active_category_taxonomy() {
+        $taxonomy = $this->category_taxonomy;
+
+        if ( empty( $taxonomy ) ) {
+            $taxonomy = $this->get_default_category_taxonomy();
+        }
+
+        if ( ! taxonomy_exists( $taxonomy ) ) {
+            return 'category';
+        }
+
+        return $taxonomy;
+    }
+
+    private function get_default_category_taxonomy() {
+        $default = taxonomy_exists( 'product_cat' ) ? 'product_cat' : 'category';
+
+        return apply_filters( 'gm2_search_widget_default_category_taxonomy', $default );
     }
 }
