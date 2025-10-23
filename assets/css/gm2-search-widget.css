@@ -7,7 +7,7 @@
     --gm2-search-control-padding-x: 16px;
     --gm2-search-control-gap: 0px;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     width: 100%;
     background-color: #f4f5f7;
     border: 1px solid rgba(24, 31, 43, 0.12);
@@ -15,6 +15,7 @@
     overflow: hidden;
     gap: var(--gm2-search-control-gap);
     min-height: var(--gm2-search-control-height);
+    box-sizing: border-box;
 }
 
 .elementor-search-form--category-multi .elementor-search-form__container {
@@ -23,7 +24,7 @@
 
 .elementor-search-form__container > * {
     margin: 0;
-    align-self: stretch;
+    box-sizing: border-box;
 }
 
 .elementor-search-form--skin-minimal .elementor-search-form__container {
@@ -34,7 +35,7 @@
 .elementor-search-form__category {
     flex: 0 0 auto;
     display: flex;
-    align-items: stretch;
+    align-items: center;
     min-height: var(--gm2-search-control-height);
 }
 
@@ -43,7 +44,7 @@
     min-width: 160px;
     height: 100%;
     display: flex;
-    align-items: stretch;
+    align-items: center;
 }
 
 .gm2-category-filter__toggle {
@@ -61,12 +62,15 @@
     gap: 8px;
     height: 100%;
     min-height: var(--gm2-search-control-height);
+    box-sizing: border-box;
 }
 
 .elementor-search-form__category-select {
     height: 100%;
     min-height: var(--gm2-search-control-height);
     padding: 0 var(--gm2-search-control-padding-x);
+    box-sizing: border-box;
+    border-radius: 0;
 }
 
 .gm2-category-filter__toggle:focus {
@@ -192,6 +196,7 @@
     color: inherit;
     height: 100%;
     min-height: var(--gm2-search-control-height);
+    box-sizing: border-box;
 }
 
 .elementor-search-form__category-select {
@@ -220,6 +225,8 @@
     transition: background-color 0.2s ease, color 0.2s ease;
     --gm2-search-button-icon-gap: 8px;
     min-height: var(--gm2-search-control-height);
+    height: 100%;
+    box-sizing: border-box;
 }
 
 .elementor-search-form__submit svg {
