@@ -584,6 +584,10 @@ add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 
  * @return string|array<int, string>
  */
 function gm2_search_preserve_query_args_in_paginate_links( $links, $args ) {
+    if ( empty( $links ) ) {
+        return $links;
+    }
+
     if ( is_admin() || ! is_search() ) {
         return $links;
     }
