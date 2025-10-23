@@ -398,6 +398,21 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         );
 
         $this->add_control(
+            'category_filter_multi_select',
+            [
+                'label' => __( 'Enable Multi-Select', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SWITCHER,
+                'label_on' => __( 'Yes', 'woo-search-optimized' ),
+                'label_off' => __( 'No', 'woo-search-optimized' ),
+                'return_value' => 'yes',
+                'default' => 'no',
+                'condition' => [
+                    'show_category_filter' => 'yes',
+                ],
+            ]
+        );
+
+        $this->add_control(
             'category_filter_terms',
             [
                 'label' => __( 'Limit Categories', 'woo-search-optimized' ),
@@ -409,6 +424,293 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                     'show_category_filter' => 'yes',
                 ],
                 'description' => __( 'Leave empty to display all categories.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->end_controls_section();
+
+        $this->start_controls_section(
+            'section_style_category_filter',
+            [
+                'label' => __( 'Category Filter', 'woo-search-optimized' ),
+                'tab' => Controls_Manager::TAB_STYLE,
+                'condition' => [
+                    'show_category_filter' => 'yes',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Typography::get_type(),
+            [
+                'name' => 'category_filter_typography',
+                'selector' => '{{WRAPPER}} .gm2-category-filter__value-text, {{WRAPPER}} .gm2-category-filter__option-text',
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_placeholder_color',
+            [
+                'label' => __( 'Placeholder Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter:not(.gm2-category-filter--has-value) .gm2-category-filter__value-text' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_value_color',
+            [
+                'label' => __( 'Selected Text Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter--has-value .gm2-category-filter__value-text' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_toggle_color',
+            [
+                'label' => __( 'Toggle Text Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__toggle' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_toggle_background',
+            [
+                'label' => __( 'Toggle Background', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__toggle' => 'background-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_toggle_background_hover',
+            [
+                'label' => __( 'Toggle Background (Hover)', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__toggle:hover, {{WRAPPER}} .gm2-category-filter--open .gm2-category-filter__toggle' => 'background-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_toggle_icon_color',
+            [
+                'label' => __( 'Toggle Icon Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__caret' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_responsive_control(
+            'category_filter_toggle_padding',
+            [
+                'label' => __( 'Toggle Padding', 'woo-search-optimized' ),
+                'type' => Controls_Manager::DIMENSIONS,
+                'size_units' => [ 'px', 'em', '%' ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__toggle' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Border::get_type(),
+            [
+                'name' => 'category_filter_toggle_border',
+                'selector' => '{{WRAPPER}} .gm2-category-filter__toggle',
+            ]
+        );
+
+        $this->add_responsive_control(
+            'category_filter_toggle_radius',
+            [
+                'label' => __( 'Toggle Border Radius', 'woo-search-optimized' ),
+                'type' => Controls_Manager::DIMENSIONS,
+                'size_units' => [ 'px', '%' ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__toggle' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Box_Shadow::get_type(),
+            [
+                'name' => 'category_filter_toggle_shadow',
+                'selector' => '{{WRAPPER}} .gm2-category-filter__toggle',
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_dropdown_background',
+            [
+                'label' => __( 'Dropdown Background', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__dropdown' => 'background-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_dropdown_text_color',
+            [
+                'label' => __( 'Dropdown Text Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__option-text' => 'color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Border::get_type(),
+            [
+                'name' => 'category_filter_dropdown_border',
+                'selector' => '{{WRAPPER}} .gm2-category-filter__dropdown',
+            ]
+        );
+
+        $this->add_responsive_control(
+            'category_filter_dropdown_radius',
+            [
+                'label' => __( 'Dropdown Border Radius', 'woo-search-optimized' ),
+                'type' => Controls_Manager::DIMENSIONS,
+                'size_units' => [ 'px', '%' ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__dropdown' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+                ],
+            ]
+        );
+
+        $this->add_responsive_control(
+            'category_filter_dropdown_padding',
+            [
+                'label' => __( 'Dropdown Padding', 'woo-search-optimized' ),
+                'type' => Controls_Manager::DIMENSIONS,
+                'size_units' => [ 'px', 'em', '%' ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__options' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+                ],
+            ]
+        );
+
+        $this->add_group_control(
+            Group_Control_Box_Shadow::get_type(),
+            [
+                'name' => 'category_filter_dropdown_shadow',
+                'selector' => '{{WRAPPER}} .gm2-category-filter__dropdown',
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_option_gap',
+            [
+                'label' => __( 'Option Spacing', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SLIDER,
+                'size_units' => [ 'px' ],
+                'range' => [
+                    'px' => [
+                        'min' => 0,
+                        'max' => 40,
+                    ],
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__option-label' => 'margin-bottom: {{SIZE}}{{UNIT}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_checkbox_border_color',
+            [
+                'label' => __( 'Checkbox Border Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__checkbox' => 'border-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_checkbox_background',
+            [
+                'label' => __( 'Checkbox Background', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__checkbox' => 'background-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_checkbox_checked_background',
+            [
+                'label' => __( 'Checkbox Checked Background', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__checkbox:checked' => 'background-color: {{VALUE}}; border-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_checkbox_checkmark_color',
+            [
+                'label' => __( 'Checkbox Checkmark Color', 'woo-search-optimized' ),
+                'type' => Controls_Manager::COLOR,
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__checkbox:checked::after' => 'border-color: {{VALUE}};',
+                ],
+            ]
+        );
+
+        $this->add_responsive_control(
+            'category_filter_checkbox_size',
+            [
+                'label' => __( 'Checkbox Size', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SLIDER,
+                'size_units' => [ 'px' ],
+                'range' => [
+                    'px' => [
+                        'min' => 8,
+                        'max' => 32,
+                    ],
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__checkbox' => '--gm2-category-checkbox-size: {{SIZE}}{{UNIT}}; width: {{SIZE}}{{UNIT}}; height: {{SIZE}}{{UNIT}};',
+                ],
+            ]
+        );
+
+        $this->add_responsive_control(
+            'category_filter_checkbox_spacing',
+            [
+                'label' => __( 'Checkbox Spacing', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SLIDER,
+                'size_units' => [ 'px' ],
+                'range' => [
+                    'px' => [
+                        'min' => 0,
+                        'max' => 24,
+                    ],
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .gm2-category-filter__checkbox' => 'margin-right: {{SIZE}}{{UNIT}};',
+                ],
             ]
         );
 
@@ -829,11 +1131,28 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         if ( '' === trim( (string) $category_placeholder ) ) {
             $category_placeholder = __( 'All categories', 'woo-search-optimized' );
         }
+        $multi_select_enabled = ( isset( $settings['category_filter_multi_select'] ) && 'yes' === $settings['category_filter_multi_select'] );
         $category_terms = $show_category_filter ? $this->get_categories_for_render( $settings ) : [];
         $category_query_var = $this->get_category_query_var();
-        $current_category = get_query_var( $category_query_var );
-        if ( empty( $current_category ) && isset( $_GET[ $category_query_var ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $current_category = sanitize_text_field( wp_unslash( $_GET[ $category_query_var ] ) );
+        $current_category = '';
+        $current_category_slugs = [];
+
+        if ( $multi_select_enabled ) {
+            $current_category_slugs = $this->get_multi_category_request_slugs();
+        } else {
+            $current_category = get_query_var( $category_query_var );
+            if ( empty( $current_category ) && isset( $_GET[ $category_query_var ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $current_category = sanitize_text_field( wp_unslash( $_GET[ $category_query_var ] ) );
+            }
+        }
+
+        $selected_category_names = [];
+        if ( $multi_select_enabled && ! empty( $current_category_slugs ) && ! empty( $category_terms ) ) {
+            foreach ( $category_terms as $category_term ) {
+                if ( in_array( $category_term->slug, $current_category_slugs, true ) ) {
+                    $selected_category_names[] = $category_term->name;
+                }
+            }
         }
 
         $this->add_render_attribute( 'form', 'class', [
@@ -843,6 +1162,9 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
 
         if ( $show_category_filter && ! empty( $category_terms ) ) {
             $this->add_render_attribute( 'form', 'class', 'elementor-search-form--has-category' );
+            if ( $multi_select_enabled ) {
+                $this->add_render_attribute( 'form', 'class', 'elementor-search-form--category-multi' );
+            }
         }
 
         if ( $show_button && 'text_icon' === $submit_type ) {
@@ -887,17 +1209,45 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         <form <?php echo $this->get_render_attribute_string( 'form' ); ?>>
             <div class="elementor-search-form__container">
                 <?php if ( $show_category_filter && ! empty( $category_terms ) ) : ?>
-                    <?php $category_select_id = 'gm2-search-category-' . $this->get_id(); ?>
+                    <?php
+                    $category_control_id = 'gm2-search-category-' . $this->get_id();
+                    $category_toggle_id  = $category_control_id . '-toggle';
+                    $category_dropdown_id = $category_control_id . '-dropdown';
+                    $has_selected_categories = $multi_select_enabled && ! empty( $selected_category_names );
+                    $display_category_value = $has_selected_categories ? implode( ', ', $selected_category_names ) : $category_placeholder;
+                    ?>
                     <div class="elementor-search-form__category">
-                        <label class="elementor-search-form__category-label elementor-screen-only" for="<?php echo esc_attr( $category_select_id ); ?>">
+                        <label class="elementor-search-form__category-label elementor-screen-only" for="<?php echo esc_attr( $multi_select_enabled ? $category_toggle_id : $category_control_id ); ?>">
                             <?php esc_html_e( 'Search category', 'woo-search-optimized' ); ?>
                         </label>
-                        <select id="<?php echo esc_attr( $category_select_id ); ?>" class="elementor-search-form__category-select" name="<?php echo esc_attr( $category_query_var ); ?>">
-                            <option value="" <?php selected( '', $current_category ); ?>><?php echo esc_html( $category_placeholder ); ?></option>
-                            <?php foreach ( $category_terms as $category_term ) : ?>
-                                <option value="<?php echo esc_attr( $category_term->slug ); ?>" <?php selected( $category_term->slug, $current_category ); ?>><?php echo esc_html( $category_term->name ); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <?php if ( $multi_select_enabled ) : ?>
+                            <div class="gm2-category-filter gm2-category-filter--multi<?php echo $has_selected_categories ? ' gm2-category-filter--has-value' : ''; ?>" data-placeholder="<?php echo esc_attr( $category_placeholder ); ?>">
+                                <button type="button" class="gm2-category-filter__toggle" id="<?php echo esc_attr( $category_toggle_id ); ?>" aria-haspopup="listbox" aria-expanded="false" aria-controls="<?php echo esc_attr( $category_dropdown_id ); ?>">
+                                    <span class="gm2-category-filter__value-text"><?php echo esc_html( $display_category_value ); ?></span>
+                                    <span class="gm2-category-filter__caret" aria-hidden="true"></span>
+                                </button>
+                                <div class="gm2-category-filter__dropdown" id="<?php echo esc_attr( $category_dropdown_id ); ?>" hidden>
+                                    <ul class="gm2-category-filter__options" role="listbox" aria-multiselectable="true">
+                                        <?php foreach ( $category_terms as $category_term ) : ?>
+                                            <li class="gm2-category-filter__option" role="option" aria-selected="<?php echo in_array( $category_term->slug, $current_category_slugs, true ) ? 'true' : 'false'; ?>">
+                                                <label class="gm2-category-filter__option-label">
+                                                    <input type="checkbox" class="gm2-category-filter__checkbox" value="<?php echo esc_attr( $category_term->slug ); ?>" data-label="<?php echo esc_attr( $category_term->name ); ?>" <?php checked( in_array( $category_term->slug, $current_category_slugs, true ) ); ?> />
+                                                    <span class="gm2-category-filter__option-text"><?php echo esc_html( $category_term->name ); ?></span>
+                                                </label>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                                <input type="hidden" class="gm2-category-filter__value-input" name="gm2_category_filter" value="<?php echo esc_attr( implode( ',', $current_category_slugs ) ); ?>" />
+                            </div>
+                        <?php else : ?>
+                            <select id="<?php echo esc_attr( $category_control_id ); ?>" class="elementor-search-form__category-select" name="<?php echo esc_attr( $category_query_var ); ?>">
+                                <option value="" <?php selected( '', $current_category ); ?>><?php echo esc_html( $category_placeholder ); ?></option>
+                                <?php foreach ( $category_terms as $category_term ) : ?>
+                                    <option value="<?php echo esc_attr( $category_term->slug ); ?>" <?php selected( $category_term->slug, $current_category ); ?>><?php echo esc_html( $category_term->name ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
                 <input <?php echo $this->get_render_attribute_string( 'input' ); ?> />
@@ -972,6 +1322,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const submitType = showButton ? ( settings.submit_type ? settings.submit_type : 'text' ) : '';
         const formSubmitTrigger = showButton ? submitTrigger : 'key_enter';
         const showCategoryFilter = 'yes' === settings.show_category_filter;
+        const categoryMultiSelect = 'yes' === settings.category_filter_multi_select;
         const categoryPlaceholder = settings.category_filter_placeholder ? settings.category_filter_placeholder : '<?php echo esc_js( __( 'All categories', 'woo-search-optimized' ) ); ?>';
         const categoryData = <?php echo wp_json_encode( $this->get_category_data_map() ); ?>;
         const parseMultiValue = function( value ) {
@@ -1027,6 +1378,9 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         }
         if ( showCategoryFilter && Object.keys( categoryData ).length ) {
             wrapperClasses.push( 'elementor-search-form--has-category' );
+            if ( categoryMultiSelect ) {
+                wrapperClasses.push( 'elementor-search-form--category-multi' );
+            }
         }
         #>
         <?php $home_url = esc_url( home_url( '/' ) ); ?>
@@ -1041,23 +1395,53 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         }
         const ariaLabel = settings.button_text ? settings.button_text : settings.placeholder;
         const categorySelectId = 'gm2-search-category-' + view.getID();
+        const categoryToggleId = categorySelectId + '-toggle';
+        const categoryDropdownId = categorySelectId + '-dropdown';
+        const categoryOptionIds = selectedCategoryIds;
         #>
         <form class="{{ wrapperClasses.join( ' ' ) }}" role="search" method="get" action="<?php echo $home_url; ?>" data-submit-trigger="{{ formSubmitTrigger }}">
             <div class="elementor-search-form__container">
                 <# if ( showCategoryFilter && Object.keys( categoryData ).length ) { #>
                     <div class="elementor-search-form__category">
-                        <label class="elementor-search-form__category-label elementor-screen-only" for="{{ categorySelectId }}"><?php esc_html_e( 'Search category', 'woo-search-optimized' ); ?></label>
-                        <select class="elementor-search-form__category-select" id="{{ categorySelectId }}" name="<?php echo esc_js( $this->get_category_query_var() ); ?>">
-                            <option value="">{{ categoryPlaceholder }}</option>
-                            <# selectedCategoryIds.forEach( function( termId ) {
-                                const termData = categoryData[ termId ];
-                                if ( ! termData ) {
-                                    return;
-                                }
-                            #>
-                                <option value="{{ termData.slug }}">{{ termData.name }}</option>
-                            <# } ); #>
-                        </select>
+                        <label class="elementor-search-form__category-label elementor-screen-only" for="{{ categoryMultiSelect ? categoryToggleId : categorySelectId }}"><?php esc_html_e( 'Search category', 'woo-search-optimized' ); ?></label>
+                        <# if ( categoryMultiSelect ) { #>
+                            <div class="gm2-category-filter gm2-category-filter--multi" data-placeholder="{{ categoryPlaceholder }}">
+                                <button type="button" class="gm2-category-filter__toggle" id="{{ categoryToggleId }}" aria-haspopup="listbox" aria-expanded="false" aria-controls="{{ categoryDropdownId }}">
+                                    <span class="gm2-category-filter__value-text">{{ categoryPlaceholder }}</span>
+                                    <span class="gm2-category-filter__caret" aria-hidden="true"></span>
+                                </button>
+                                <div class="gm2-category-filter__dropdown" id="{{ categoryDropdownId }}" hidden>
+                                    <ul class="gm2-category-filter__options" role="listbox" aria-multiselectable="true">
+                                        <# categoryOptionIds.forEach( function( termId ) {
+                                            const termData = categoryData[ termId ];
+                                            if ( ! termData ) {
+                                                return;
+                                            }
+                                        #>
+                                            <li class="gm2-category-filter__option" role="option" aria-selected="false">
+                                                <label class="gm2-category-filter__option-label">
+                                                    <input type="checkbox" class="gm2-category-filter__checkbox" value="{{ termData.slug }}" data-label="{{ termData.name }}" />
+                                                    <span class="gm2-category-filter__option-text">{{ termData.name }}</span>
+                                                </label>
+                                            </li>
+                                        <# } ); #>
+                                    </ul>
+                                </div>
+                                <input type="hidden" class="gm2-category-filter__value-input" name="gm2_category_filter" value="" />
+                            </div>
+                        <# } else { #>
+                            <select class="elementor-search-form__category-select" id="{{ categorySelectId }}" name="<?php echo esc_js( $this->get_category_query_var() ); ?>">
+                                <option value="">{{ categoryPlaceholder }}</option>
+                                <# categoryOptionIds.forEach( function( termId ) {
+                                    const termData = categoryData[ termId ];
+                                    if ( ! termData ) {
+                                        return;
+                                    }
+                                #>
+                                    <option value="{{ termData.slug }}">{{ termData.name }}</option>
+                                <# } ); #>
+                            </select>
+                        <# } #>
                     </div>
                 <# } #>
                 <input class="elementor-search-form__input" type="search" name="{{ queryVar }}" placeholder="{{{ settings.placeholder }}}" value="" />
@@ -1283,6 +1667,25 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         }
 
         return $terms;
+    }
+
+    private function get_multi_category_request_slugs() {
+        if ( ! isset( $_GET['gm2_category_filter'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            return [];
+        }
+
+        $raw = wp_unslash( $_GET['gm2_category_filter'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( is_array( $raw ) ) {
+            $parts = $raw;
+        } else {
+            $parts = preg_split( '/[\s,]+/', (string) $raw );
+        }
+
+        $parts = array_map( 'sanitize_title', (array) $parts );
+        $parts = array_filter( $parts );
+
+        return array_values( array_unique( $parts ) );
     }
 
     private function get_category_query_var() {

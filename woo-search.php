@@ -211,6 +211,59 @@ function gm2_search_get_request_ids( $key ) {
 }
 
 /**
+ * Parse a comma or space separated list of slugs from a query variable.
+ *
+ * @param string $key Query parameter key.
+ * @return array<string>
+ */
+function gm2_search_get_request_slugs( $key ) {
+    if ( ! isset( $_GET[ $key ] ) ) {
+        return [];
+    }
+
+    $raw = wp_unslash( $_GET[ $key ] );
+
+    if ( is_array( $raw ) ) {
+        $parts = $raw;
+    } else {
+        $parts = preg_split( '/[\s,]+/', (string) $raw );
+    }
+
+    $parts = array_map( 'sanitize_title', (array) $parts );
+    $parts = array_filter( $parts );
+
+    return array_values( array_unique( $parts ) );
+}
+
+/**
+ * Get term IDs for a set of slugs within a taxonomy.
+ *
+ * @param array<string> $slugs Term slugs.
+ * @param string        $taxonomy Taxonomy name.
+ * @return array<int>
+ */
+function gm2_search_get_term_ids_from_slugs( $slugs, $taxonomy ) {
+    if ( empty( $slugs ) ) {
+        return [];
+    }
+
+    $terms = get_terms(
+        [
+            'taxonomy'   => $taxonomy,
+            'slug'       => $slugs,
+            'hide_empty' => false,
+            'fields'     => 'ids',
+        ]
+    );
+
+    if ( is_wp_error( $terms ) ) {
+        return [];
+    }
+
+    return array_map( 'intval', $terms );
+}
+
+/**
  * Convert a preset date range slug into a WP_Query-compatible date query.
  *
  * @param string $range Range slug.
@@ -292,6 +345,23 @@ function gm2_search_apply_query_parameters( $query ) {
         }
 
         $query->set( 'tax_query', $tax_query );
+    }
+
+    $filter_category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
+    if ( ! empty( $filter_category_slugs ) ) {
+        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, 'category' );
+
+        if ( ! empty( $filter_category_ids ) ) {
+            $tax_query   = (array) $query->get( 'tax_query' );
+            $tax_query[] = [
+                'taxonomy' => 'category',
+                'field'    => 'term_id',
+                'terms'    => $filter_category_ids,
+                'operator' => 'IN',
+            ];
+
+            $query->set( 'tax_query', $tax_query );
+        }
     }
 
     $date_range = isset( $_GET['gm2_date_range'] ) ? sanitize_text_field( wp_unslash( $_GET['gm2_date_range'] ) ) : '';
