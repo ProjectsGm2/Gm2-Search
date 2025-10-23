@@ -374,3 +374,23 @@ function gm2_search_register_elementor_widget_legacy() {
     gm2_search_register_elementor_widget( \Elementor\Plugin::instance()->widgets_manager );
 }
 add_action( 'elementor/widgets/widgets_registered', 'gm2_search_register_elementor_widget_legacy' );
+
+/**
+ * Ensure the Elementor search form styles are available on the front end.
+ *
+ * Elementor Pro registers the `elementor-search-form` stylesheet, but the
+ * handle is not available when only the free Elementor plugin is installed.
+ * The widget clones Elementor's markup, so we register a lightweight fallback
+ * stylesheet under the same handle when it is missing.
+ */
+function gm2_search_register_elementor_widget_styles() {
+    $relative_path = 'assets/css/gm2-search-widget.css';
+    $style_file    = plugin_dir_path( __FILE__ ) . $relative_path;
+    $style_url     = plugins_url( $relative_path, __FILE__ );
+    $version       = file_exists( $style_file ) ? filemtime( $style_file ) : false;
+
+    if ( ! wp_style_is( 'elementor-search-form', 'registered' ) ) {
+        wp_register_style( 'elementor-search-form', $style_url, [], $version );
+    }
+}
+add_action( 'init', 'gm2_search_register_elementor_widget_styles' );
