@@ -191,15 +191,17 @@
 .elementor-search-form__category-select {
     flex: 1 1 auto;
     min-width: 0;
-    border: none;
-    background: transparent;
+    border: none !important;
+    background-color: transparent !important;
     padding: 0 var(--gm2-search-control-padding-x);
     font-size: 16px;
-    line-height: 1.4;
+    line-height: var(--gm2-search-control-height);
     color: inherit;
     height: 100%;
     min-height: var(--gm2-search-control-height);
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
 }
 
 .elementor-search-form__category-select {
