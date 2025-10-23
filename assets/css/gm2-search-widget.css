@@ -27,12 +27,16 @@
 
 .elementor-search-form__category {
     flex: 0 0 auto;
+    display: flex;
+    align-items: stretch;
 }
 
 .gm2-category-filter {
     position: relative;
     min-width: 160px;
     height: 100%;
+    display: flex;
+    align-items: stretch;
 }
 
 .gm2-category-filter__toggle {
@@ -48,6 +52,11 @@
     cursor: pointer;
     text-align: left;
     gap: 8px;
+    height: 100%;
+}
+
+.elementor-search-form__category-select {
+    height: 100%;
 }
 
 .gm2-category-filter__toggle:focus {
