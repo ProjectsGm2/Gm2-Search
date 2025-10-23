@@ -517,6 +517,7 @@ function gm2_search_enqueue_elementor_widget_styles() {
 }
 add_action( 'elementor/frontend/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
 add_action( 'elementor/editor/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
+add_action( 'elementor/preview/enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
 
 /**
  * Ensure the widget script is present inside the Elementor editor preview
@@ -529,3 +530,4 @@ function gm2_search_enqueue_elementor_widget_scripts() {
 }
 add_action( 'elementor/frontend/after_enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
 add_action( 'elementor/editor/after_enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
+add_action( 'elementor/preview/enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
