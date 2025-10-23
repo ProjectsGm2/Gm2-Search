@@ -392,5 +392,15 @@ function gm2_search_register_elementor_widget_styles() {
     if ( ! wp_style_is( 'elementor-search-form', 'registered' ) ) {
         wp_register_style( 'elementor-search-form', $style_url, [], $version );
     }
+
+    $script_relative_path = 'assets/js/gm2-search-widget.js';
+    $script_file          = plugin_dir_path( __FILE__ ) . $script_relative_path;
+
+    if ( file_exists( $script_file ) && ! wp_script_is( 'gm2-search-widget', 'registered' ) ) {
+        $script_url     = plugins_url( $script_relative_path, __FILE__ );
+        $script_version = filemtime( $script_file );
+
+        wp_register_script( 'gm2-search-widget', $script_url, [ 'jquery', 'elementor-frontend' ], $script_version, true );
+    }
 }
 add_action( 'init', 'gm2_search_register_elementor_widget_styles' );
