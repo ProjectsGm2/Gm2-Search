@@ -553,7 +553,7 @@ function gm2_search_get_active_query_args() {
  * @param bool   $escape  Whether the result will be escaped.
  * @return string
  */
-function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
+function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape = true ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
     if ( is_admin() || ! is_search() ) {
         return $result;
     }
