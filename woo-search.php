@@ -459,6 +459,116 @@ function gm2_search_register_query_vars( $public_query_vars ) {
 add_filter( 'query_vars', 'gm2_search_register_query_vars' );
 
 /**
+ * Collect active Gm2 search query arguments for pagination links.
+ *
+ * @return array<string, mixed>
+ */
+function gm2_search_get_active_query_args() {
+    $args = [];
+
+    $id_keys = [
+        'gm2_include_posts',
+        'gm2_exclude_posts',
+        'gm2_include_categories',
+        'gm2_exclude_categories',
+    ];
+
+    foreach ( $id_keys as $key ) {
+        $ids = gm2_search_get_request_ids( $key );
+
+        if ( ! empty( $ids ) ) {
+            $args[ $key ] = implode( ',', $ids );
+        }
+    }
+
+    $category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
+    if ( ! empty( $category_slugs ) ) {
+        $args['gm2_category_filter'] = implode( ',', $category_slugs );
+    }
+
+    if ( isset( $_GET['gm2_category_taxonomy'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $taxonomy = sanitize_key( wp_unslash( $_GET['gm2_category_taxonomy'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( $taxonomy && taxonomy_exists( $taxonomy ) ) {
+            $args['gm2_category_taxonomy'] = $taxonomy;
+        }
+    }
+
+    if ( isset( $_GET['gm2_date_range'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $allowed_ranges = [ 'past_day', 'past_week', 'past_month', 'past_year' ];
+        $date_range     = sanitize_text_field( wp_unslash( $_GET['gm2_date_range'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( in_array( $date_range, $allowed_ranges, true ) ) {
+            $args['gm2_date_range'] = $date_range;
+        }
+    }
+
+    if ( isset( $_GET['gm2_orderby'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $allowed_orderby = [ 'relevance', 'date', 'title', 'price', 'rand' ];
+        $order_by        = sanitize_key( wp_unslash( $_GET['gm2_orderby'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( in_array( $order_by, $allowed_orderby, true ) ) {
+            $args['gm2_orderby'] = $order_by;
+        }
+    }
+
+    if ( isset( $_GET['gm2_order'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $order = strtoupper( sanitize_text_field( wp_unslash( $_GET['gm2_order'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( in_array( $order, [ 'ASC', 'DESC' ], true ) ) {
+            $args['gm2_order'] = $order;
+        }
+    }
+
+    if ( isset( $_GET['gm2_query_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $query_id = sanitize_key( wp_unslash( $_GET['gm2_query_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( ! empty( $query_id ) ) {
+            $args['gm2_query_id'] = $query_id;
+        }
+    }
+
+    if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $post_types = wp_unslash( $_GET['post_type'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $post_types = array_map( 'sanitize_key', (array) $post_types );
+        $post_types = array_filter( $post_types );
+
+        if ( ! empty( $post_types ) ) {
+            if ( 1 === count( $post_types ) ) {
+                $args['post_type'] = reset( $post_types );
+            } else {
+                $args['post_type'] = array_values( $post_types );
+            }
+        }
+    }
+
+    return $args;
+}
+
+/**
+ * Append active Gm2 query arguments to pagination links so filters persist across pages.
+ *
+ * @param string $result Generated pagination URL.
+ * @param int    $pagenum Page number for the link.
+ * @param bool   $escape  Whether the result will be escaped.
+ * @return string
+ */
+function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
+    if ( is_admin() || ! is_search() ) {
+        return $result;
+    }
+
+    $args = gm2_search_get_active_query_args();
+
+    if ( empty( $args ) ) {
+        return $result;
+    }
+
+    return add_query_arg( $args, $result );
+}
+add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 10, 3 );
+
+/**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
  */
 function gm2_search_register_elementor_widget( $widgets_manager ) {
