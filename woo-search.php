@@ -554,7 +554,7 @@ function gm2_search_get_active_query_args() {
  * @return string
  */
 function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape = true ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
-    if ( is_admin() || ! is_search() ) {
+    if ( is_admin() ) {
         return $result;
     }
 
@@ -588,7 +588,7 @@ function gm2_search_preserve_query_args_in_paginate_links( $links, $args ) {
         return $links;
     }
 
-    if ( is_admin() || ! is_search() ) {
+    if ( is_admin() ) {
         return $links;
     }
 
@@ -599,6 +599,10 @@ function gm2_search_preserve_query_args_in_paginate_links( $links, $args ) {
     }
 
     $append_query_args = static function( $link_html ) use ( $query_args ) {
+        if ( ! is_string( $link_html ) || '' === $link_html ) {
+            return $link_html;
+        }
+
         return preg_replace_callback(
             "/href=(['\"])([^'\"]*)\\1/",
             static function( $matches ) use ( $query_args ) {
@@ -615,7 +619,7 @@ function gm2_search_preserve_query_args_in_paginate_links( $links, $args ) {
     if ( is_array( $links ) ) {
         foreach ( $links as $index => $link_html ) {
             // Links without an href attribute (for example the current page span) are left untouched.
-            if ( false === strpos( $link_html, 'href=' ) ) {
+            if ( ! is_string( $link_html ) || false === strpos( $link_html, 'href=' ) ) {
                 continue;
             }
 
@@ -625,7 +629,7 @@ function gm2_search_preserve_query_args_in_paginate_links( $links, $args ) {
         return $links;
     }
 
-    if ( false === strpos( $links, 'href=' ) ) {
+    if ( ! is_string( $links ) || false === strpos( $links, 'href=' ) ) {
         return $links;
     }
 
