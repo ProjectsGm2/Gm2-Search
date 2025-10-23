@@ -517,3 +517,15 @@ function gm2_search_enqueue_elementor_widget_styles() {
 }
 add_action( 'elementor/frontend/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
 add_action( 'elementor/editor/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
+
+/**
+ * Ensure the widget script is present inside the Elementor editor preview
+ * so interactive controls (like the category multi-select) work as expected.
+ */
+function gm2_search_enqueue_elementor_widget_scripts() {
+    if ( wp_script_is( 'gm2-search-widget', 'registered' ) ) {
+        wp_enqueue_script( 'gm2-search-widget' );
+    }
+}
+add_action( 'elementor/frontend/after_enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
+add_action( 'elementor/editor/after_enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
