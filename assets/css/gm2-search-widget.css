@@ -1,0 +1,124 @@
+.elementor-search-form {
+    width: 100%;
+}
+
+.elementor-search-form__container {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    background-color: #f4f5f7;
+    border: 1px solid rgba(24, 31, 43, 0.12);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.elementor-search-form__container > * {
+    margin: 0;
+}
+
+.elementor-search-form--skin-minimal .elementor-search-form__container {
+    background-color: transparent;
+    border: none;
+}
+
+.elementor-search-form__category {
+    flex: 0 0 auto;
+}
+
+.elementor-search-form__input,
+.elementor-search-form__category-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    padding: 12px 16px;
+    font-size: 16px;
+    line-height: 1.4;
+    color: inherit;
+}
+
+.elementor-search-form__category-select {
+    border-right: 1px solid rgba(24, 31, 43, 0.12);
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+.elementor-search-form__input:focus,
+.elementor-search-form__category-select:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.elementor-search-form__submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 24px;
+    border: none;
+    border-radius: 0;
+    background-color: #626b7f;
+    color: #ffffff;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.elementor-search-form__submit svg {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+}
+
+.elementor-search-form__submit .elementor-button-icon {
+    display: inline-flex;
+    margin-right: 8px;
+}
+
+.elementor-search-form--icon-after .elementor-search-form__submit .elementor-button-icon {
+    margin-right: 0;
+    margin-left: 8px;
+}
+
+.elementor-search-form__submit:hover,
+.elementor-search-form__submit:focus {
+    background-color: #4a5363;
+    color: #ffffff;
+}
+
+.elementor-search-form__submit--minimal {
+    background-color: transparent;
+    color: inherit;
+}
+
+.elementor-search-form__submit--minimal:hover,
+.elementor-search-form__submit--minimal:focus {
+    background-color: transparent;
+}
+
+.elementor-search-form--submit-icon .elementor-search-form__submit {
+    padding: 0 16px;
+}
+
+.elementor-search-form__input::-ms-clear {
+    display: none;
+}
+
+.elementor-search-form--skin-full_screen {
+    position: relative;
+}
+
+.elementor-search-form--skin-full_screen .elementor-search-form__container {
+    background-color: transparent;
+    border: none;
+}
+
+.elementor-search-form--skin-full_screen .elementor-search-form__input {
+    border-bottom: 2px solid currentColor;
+    border-radius: 0;
+}
+
+.elementor-search-form--skin-full_screen .elementor-search-form__submit {
+    background-color: transparent;
+    color: inherit;
+    padding: 0 16px;
+}
