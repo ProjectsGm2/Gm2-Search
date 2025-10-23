@@ -20,7 +20,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
     private $category_taxonomy = '';
 
     public function get_style_depends() {
-        return [ 'elementor-frontend', 'elementor-search-form' ];
+        return [ 'elementor-frontend', 'elementor-search-form', 'gm2-search-widget' ];
     }
 
     public function get_script_depends() {
