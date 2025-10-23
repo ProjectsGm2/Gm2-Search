@@ -222,6 +222,46 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             ]
         );
 
+        $this->add_control(
+            'show_category_filter',
+            [
+                'label' => __( 'Show Category Filter', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SWITCHER,
+                'label_on' => __( 'Show', 'woo-search-optimized' ),
+                'label_off' => __( 'Hide', 'woo-search-optimized' ),
+                'return_value' => 'yes',
+                'default' => '',
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_placeholder',
+            [
+                'label' => __( 'Category Placeholder', 'woo-search-optimized' ),
+                'type' => Controls_Manager::TEXT,
+                'default' => __( 'All categories', 'woo-search-optimized' ),
+                'placeholder' => __( 'Select category', 'woo-search-optimized' ),
+                'condition' => [
+                    'show_category_filter' => 'yes',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'category_filter_terms',
+            [
+                'label' => __( 'Limit Categories', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT2,
+                'label_block' => true,
+                'multiple' => true,
+                'options' => $this->get_category_control_options(),
+                'condition' => [
+                    'show_category_filter' => 'yes',
+                ],
+                'description' => __( 'Leave empty to display all categories.', 'woo-search-optimized' ),
+            ]
+        );
+
         $this->end_controls_section();
 
         $this->start_controls_section(
@@ -236,7 +276,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             Group_Control_Typography::get_type(),
             [
                 'name' => 'input_typography',
-                'selector' => '{{WRAPPER}} .elementor-search-form__input',
+                'selector' => '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select',
             ]
         );
 
@@ -246,7 +286,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'label' => __( 'Text Color', 'woo-search-optimized' ),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .elementor-search-form__input' => 'color: {{VALUE}};',
+                    '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select' => 'color: {{VALUE}};',
                 ],
             ]
         );
@@ -268,7 +308,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'label' => __( 'Background Color', 'woo-search-optimized' ),
                 'type' => Controls_Manager::COLOR,
                 'selectors' => [
-                    '{{WRAPPER}} .elementor-search-form__input' => 'background-color: {{VALUE}};',
+                    '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select' => 'background-color: {{VALUE}};',
                 ],
             ]
         );
@@ -280,7 +320,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'type' => Controls_Manager::DIMENSIONS,
                 'size_units' => [ 'px', '%', 'em' ],
                 'selectors' => [
-                    '{{WRAPPER}} .elementor-search-form__input' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+                    '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select' => 'padding: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
                 ],
             ]
         );
@@ -292,7 +332,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 'type' => Controls_Manager::DIMENSIONS,
                 'size_units' => [ 'px', '%' ],
                 'selectors' => [
-                    '{{WRAPPER}} .elementor-search-form__input' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
+                    '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select' => 'border-radius: {{TOP}}{{UNIT}} {{RIGHT}}{{UNIT}} {{BOTTOM}}{{UNIT}} {{LEFT}}{{UNIT}};',
                 ],
             ]
         );
@@ -301,7 +341,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             Group_Control_Border::get_type(),
             [
                 'name' => 'input_border',
-                'selector' => '{{WRAPPER}} .elementor-search-form__input',
+                'selector' => '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select',
             ]
         );
 
@@ -309,7 +349,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             Group_Control_Box_Shadow::get_type(),
             [
                 'name' => 'input_box_shadow',
-                'selector' => '{{WRAPPER}} .elementor-search-form__input',
+                'selector' => '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select',
             ]
         );
 
@@ -323,7 +363,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                     'px' => [ 'min' => 20, 'max' => 150 ],
                 ],
                 'selectors' => [
-                    '{{WRAPPER}} .elementor-search-form__input' => 'height: {{SIZE}}{{UNIT}};',
+                    '{{WRAPPER}} .elementor-search-form__input, {{WRAPPER}} .elementor-search-form__category-select' => 'height: {{SIZE}}{{UNIT}};',
                 ],
             ]
         );
@@ -567,11 +607,26 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $icon_position = isset( $settings['icon_position'] ) ? $settings['icon_position'] : 'before';
         $button_icon = isset( $settings['button_icon'] ) ? $settings['button_icon'] : [];
         $has_icon    = ! empty( $button_icon['value'] );
+        $show_category_filter = ( isset( $settings['show_category_filter'] ) && 'yes' === $settings['show_category_filter'] );
+        $category_placeholder = isset( $settings['category_filter_placeholder'] ) ? $settings['category_filter_placeholder'] : '';
+        if ( '' === trim( (string) $category_placeholder ) ) {
+            $category_placeholder = __( 'All categories', 'woo-search-optimized' );
+        }
+        $category_terms = $show_category_filter ? $this->get_categories_for_render( $settings ) : [];
+        $category_query_var = $this->get_category_query_var();
+        $current_category = get_query_var( $category_query_var );
+        if ( empty( $current_category ) && isset( $_GET[ $category_query_var ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $current_category = sanitize_text_field( wp_unslash( $_GET[ $category_query_var ] ) );
+        }
 
         $this->add_render_attribute( 'form', 'class', [
             'elementor-search-form',
             'elementor-search-form--skin-' . $settings['skin'],
         ] );
+
+        if ( $show_category_filter && ! empty( $category_terms ) ) {
+            $this->add_render_attribute( 'form', 'class', 'elementor-search-form--has-category' );
+        }
 
         if ( $show_button && 'text_icon' === $submit_type ) {
             $this->add_render_attribute( 'form', 'class', 'elementor-search-form--with-button' );
@@ -613,6 +668,20 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         ?>
         <form <?php echo $this->get_render_attribute_string( 'form' ); ?>>
             <div class="elementor-search-form__container">
+                <?php if ( $show_category_filter && ! empty( $category_terms ) ) : ?>
+                    <?php $category_select_id = 'gm2-search-category-' . $this->get_id(); ?>
+                    <div class="elementor-search-form__category">
+                        <label class="elementor-search-form__category-label elementor-screen-only" for="<?php echo esc_attr( $category_select_id ); ?>">
+                            <?php esc_html_e( 'Search category', 'woo-search-optimized' ); ?>
+                        </label>
+                        <select id="<?php echo esc_attr( $category_select_id ); ?>" class="elementor-search-form__category-select" name="<?php echo esc_attr( $category_query_var ); ?>">
+                            <option value="" <?php selected( '', $current_category ); ?>><?php echo esc_html( $category_placeholder ); ?></option>
+                            <?php foreach ( $category_terms as $category_term ) : ?>
+                                <option value="<?php echo esc_attr( $category_term->slug ); ?>" <?php selected( $category_term->slug, $current_category ); ?>><?php echo esc_html( $category_term->name ); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
                 <input <?php echo $this->get_render_attribute_string( 'input' ); ?> />
                 <?php if ( $show_button ) : ?>
                     <button <?php echo $this->get_render_attribute_string( 'button' ); ?>>
@@ -653,6 +722,20 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const queryVar = settings.query_var ? settings.query_var : 's';
         const showButton = 'yes' === settings.show_submit_button;
         const submitType = showButton ? settings.submit_type : '';
+        const showCategoryFilter = 'yes' === settings.show_category_filter;
+        const categoryPlaceholder = settings.category_filter_placeholder ? settings.category_filter_placeholder : '<?php echo esc_js( __( 'All categories', 'woo-search-optimized' ) ); ?>';
+        const categoryData = <?php echo wp_json_encode( $this->get_category_data_map() ); ?>;
+        let selectedCategoryIds = [];
+        if ( settings.category_filter_terms ) {
+            if ( Array.isArray( settings.category_filter_terms ) ) {
+                selectedCategoryIds = settings.category_filter_terms;
+            } else {
+                selectedCategoryIds = Object.keys( settings.category_filter_terms );
+            }
+        }
+        if ( ! selectedCategoryIds.length ) {
+            selectedCategoryIds = Object.keys( categoryData );
+        }
         const wrapperClasses = [
             'elementor-search-form',
             'elementor-search-form--skin-' + settings.skin,
@@ -670,6 +753,9 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         } else {
             wrapperClasses.push( 'elementor-search-form--no-button' );
         }
+        if ( showCategoryFilter && Object.keys( categoryData ).length ) {
+            wrapperClasses.push( 'elementor-search-form--has-category' );
+        }
         #>
         <?php $home_url = esc_url( home_url( '/' ) ); ?>
         <#
@@ -682,9 +768,26 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             buttonClasses.push( 'after' === settings.icon_position ? 'elementor-align-icon-right' : 'elementor-align-icon-left' );
         }
         const ariaLabel = settings.button_text ? settings.button_text : settings.placeholder;
+        const categorySelectId = 'gm2-search-category-' + view.getID();
         #>
         <form class="{{ wrapperClasses.join( ' ' ) }}" role="search" method="get" action="<?php echo $home_url; ?>">
             <div class="elementor-search-form__container">
+                <# if ( showCategoryFilter && Object.keys( categoryData ).length ) { #>
+                    <div class="elementor-search-form__category">
+                        <label class="elementor-search-form__category-label elementor-screen-only" for="{{ categorySelectId }}"><?php esc_html_e( 'Search category', 'woo-search-optimized' ); ?></label>
+                        <select class="elementor-search-form__category-select" id="{{ categorySelectId }}" name="<?php echo esc_js( $this->get_category_query_var() ); ?>">
+                            <option value="">{{ categoryPlaceholder }}</option>
+                            <# selectedCategoryIds.forEach( function( termId ) {
+                                const termData = categoryData[ termId ];
+                                if ( ! termData ) {
+                                    return;
+                                }
+                            #>
+                                <option value="{{ termData.slug }}">{{ termData.name }}</option>
+                            <# } ); #>
+                        </select>
+                    </div>
+                <# } #>
                 <input class="elementor-search-form__input" type="search" name="{{ queryVar }}" placeholder="{{{ settings.placeholder }}}" value="" />
                 <# if ( showButton ) { #>
                     <button class="{{ buttonClasses.join( ' ' ) }}" type="submit" aria-label="{{ ariaLabel }}">
@@ -717,5 +820,63 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             </div>
         </form>
         <?php
+    }
+
+    private function get_category_control_options() {
+        $terms = $this->get_category_terms();
+
+        $options = [];
+
+        foreach ( $terms as $term ) {
+            $options[ $term->term_id ] = $term->name;
+        }
+
+        return $options;
+    }
+
+    private function get_category_data_map() {
+        $terms = $this->get_category_terms();
+
+        $data = [];
+
+        foreach ( $terms as $term ) {
+            $data[ (string) $term->term_id ] = [
+                'name' => $term->name,
+                'slug' => $term->slug,
+            ];
+        }
+
+        return $data;
+    }
+
+    private function get_categories_for_render( $settings ) {
+        $args = [];
+
+        if ( ! empty( $settings['category_filter_terms'] ) ) {
+            $term_ids = array_map( 'intval', (array) $settings['category_filter_terms'] );
+            $args['include'] = $term_ids;
+            $args['orderby'] = 'include';
+        }
+
+        return $this->get_category_terms( $args );
+    }
+
+    private function get_category_terms( $args = [] ) {
+        $defaults = [
+            'taxonomy' => 'category',
+            'hide_empty' => false,
+        ];
+
+        $terms = get_terms( wp_parse_args( $args, $defaults ) );
+
+        if ( is_wp_error( $terms ) ) {
+            return [];
+        }
+
+        return $terms;
+    }
+
+    private function get_category_query_var() {
+        return 'category_name';
     }
 }
