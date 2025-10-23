@@ -380,6 +380,82 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         );
 
         $this->add_control(
+            'heading_additional_settings',
+            [
+                'type' => Controls_Manager::HEADING,
+                'label' => __( 'Additional Settings', 'woo-search-optimized' ),
+                'separator' => 'before',
+            ]
+        );
+
+        $this->add_control(
+            'pagination_type',
+            [
+                'label' => __( 'Pagination Type', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT,
+                'options' => [
+                    'none' => __( 'None', 'woo-search-optimized' ),
+                    'numbers' => __( 'Numbers', 'woo-search-optimized' ),
+                    'previous_next' => __( 'Previous/Next', 'woo-search-optimized' ),
+                    'numbers_previous_next' => __( 'Numbers + Previous/Next', 'woo-search-optimized' ),
+                ],
+                'default' => 'none',
+            ]
+        );
+
+        $this->add_control(
+            'pagination_prev_label',
+            [
+                'label' => __( 'Previous Label', 'woo-search-optimized' ),
+                'type' => Controls_Manager::TEXT,
+                'default' => __( 'Previous', 'woo-search-optimized' ),
+                'condition' => [
+                    'pagination_type' => [ 'previous_next', 'numbers_previous_next' ],
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'pagination_next_label',
+            [
+                'label' => __( 'Next Label', 'woo-search-optimized' ),
+                'type' => Controls_Manager::TEXT,
+                'default' => __( 'Next', 'woo-search-optimized' ),
+                'condition' => [
+                    'pagination_type' => [ 'previous_next', 'numbers_previous_next' ],
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'pagination_page_limit',
+            [
+                'label' => __( 'Page Limit', 'woo-search-optimized' ),
+                'type' => Controls_Manager::NUMBER,
+                'default' => 5,
+                'min' => 1,
+                'condition' => [
+                    'pagination_type!' => 'none',
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'pagination_shorten',
+            [
+                'label' => __( 'Shorten', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SWITCHER,
+                'label_on' => __( 'Yes', 'woo-search-optimized' ),
+                'label_off' => __( 'No', 'woo-search-optimized' ),
+                'return_value' => 'yes',
+                'default' => 'no',
+                'condition' => [
+                    'pagination_type' => [ 'numbers', 'numbers_previous_next' ],
+                ],
+            ]
+        );
+
+        $this->add_control(
             'show_category_filter',
             [
                 'label' => __( 'Show Category Filter', 'woo-search-optimized' ),
@@ -1192,6 +1268,25 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $this->add_render_attribute( 'form', 'action', esc_url( home_url( '/' ) ) );
         $this->add_render_attribute( 'form', 'data-submit-trigger', $form_submit_trigger );
 
+        $pagination_type = isset( $settings['pagination_type'] ) ? $settings['pagination_type'] : 'none';
+        $pagination_page_limit = isset( $settings['pagination_page_limit'] ) ? absint( $settings['pagination_page_limit'] ) : 0;
+        $pagination_shorten = isset( $settings['pagination_shorten'] ) && 'yes' === $settings['pagination_shorten'];
+        $pagination_prev_label = ! empty( $settings['pagination_prev_label'] ) ? $settings['pagination_prev_label'] : __( 'Previous', 'woo-search-optimized' );
+        $pagination_next_label = ! empty( $settings['pagination_next_label'] ) ? $settings['pagination_next_label'] : __( 'Next', 'woo-search-optimized' );
+
+        $this->add_render_attribute( 'form', 'data-pagination-type', $pagination_type );
+
+        if ( $pagination_page_limit > 0 ) {
+            $this->add_render_attribute( 'form', 'data-pagination-page-limit', $pagination_page_limit );
+        }
+
+        $this->add_render_attribute( 'form', 'data-pagination-shorten', $pagination_shorten ? 'true' : 'false' );
+
+        if ( in_array( $pagination_type, [ 'previous_next', 'numbers_previous_next' ], true ) ) {
+            $this->add_render_attribute( 'form', 'data-pagination-prev-label', wp_strip_all_tags( $pagination_prev_label ) );
+            $this->add_render_attribute( 'form', 'data-pagination-next-label', wp_strip_all_tags( $pagination_next_label ) );
+        }
+
         $this->add_render_attribute( 'input', 'type', 'search' );
         $this->add_render_attribute( 'input', 'name', $query_var );
         $this->add_render_attribute( 'input', 'class', 'elementor-search-form__input' );
@@ -1396,7 +1491,11 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             }
         }
         #>
-        <?php $home_url = esc_url( home_url( '/' ) ); ?>
+        <?php
+        $home_url = esc_url( home_url( '/' ) );
+        $default_prev_label = esc_js( __( 'Previous', 'woo-search-optimized' ) );
+        $default_next_label = esc_js( __( 'Next', 'woo-search-optimized' ) );
+        ?>
         <#
         const buttonClasses = [ 'elementor-search-form__submit' ];
         if ( showButton && 'minimal' === settings.skin ) {
@@ -1411,8 +1510,16 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const categoryToggleId = categorySelectId + '-toggle';
         const categoryDropdownId = categorySelectId + '-dropdown';
         const categoryOptionIds = selectedCategoryIds;
+        const paginationType = settings.pagination_type ? settings.pagination_type : 'none';
+        const paginationPageLimit = settings.pagination_page_limit ? settings.pagination_page_limit : '';
+        const paginationShorten = 'yes' === settings.pagination_shorten;
+        const paginationHasPrevNext = [ 'previous_next', 'numbers_previous_next' ].includes( paginationType );
+        const paginationPrevLabel = settings.pagination_prev_label ? settings.pagination_prev_label : '<?php echo $default_prev_label; ?>';
+        const paginationNextLabel = settings.pagination_next_label ? settings.pagination_next_label : '<?php echo $default_next_label; ?>';
         #>
-        <form class="{{ wrapperClasses.join( ' ' ) }}" role="search" method="get" action="<?php echo $home_url; ?>" data-submit-trigger="{{ formSubmitTrigger }}">
+        <form class="{{ wrapperClasses.join( ' ' ) }}" role="search" method="get" action="<?php echo $home_url; ?>" data-submit-trigger="{{ formSubmitTrigger }}" data-pagination-type="{{ paginationType }}" data-pagination-shorten="{{ paginationShorten ? 'true' : 'false' }}"
+            <# if ( paginationPageLimit ) { #> data-pagination-page-limit="{{ paginationPageLimit }}"<# } #>
+            <# if ( paginationHasPrevNext ) { #> data-pagination-prev-label="{{ paginationPrevLabel }}" data-pagination-next-label="{{ paginationNextLabel }}"<# } #>>
             <div class="elementor-search-form__container">
                 <# if ( showCategoryFilter && Object.keys( categoryData ).length ) { #>
                     <div class="elementor-search-form__category">
