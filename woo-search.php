@@ -482,8 +482,12 @@ function gm2_search_register_elementor_widget_styles() {
     $style_url     = plugins_url( $relative_path, __FILE__ );
     $version       = file_exists( $style_file ) ? filemtime( $style_file ) : false;
 
+    if ( ! wp_style_is( 'gm2-search-widget', 'registered' ) ) {
+        wp_register_style( 'gm2-search-widget', $style_url, [ 'elementor-frontend' ], $version );
+    }
+
     if ( ! wp_style_is( 'elementor-search-form', 'registered' ) ) {
-        wp_register_style( 'elementor-search-form', $style_url, [], $version );
+        wp_register_style( 'elementor-search-form', $style_url, [ 'gm2-search-widget' ], $version );
     }
 
     $script_relative_path = 'assets/js/gm2-search-widget.js';
@@ -503,9 +507,25 @@ add_action( 'init', 'gm2_search_register_elementor_widget_styles' );
  * including the editor preview iframe.
  */
 function gm2_search_enqueue_elementor_widget_styles() {
+    if ( wp_style_is( 'gm2-search-widget', 'registered' ) ) {
+        wp_enqueue_style( 'gm2-search-widget' );
+    }
+
     if ( wp_style_is( 'elementor-search-form', 'registered' ) ) {
         wp_enqueue_style( 'elementor-search-form' );
     }
 }
 add_action( 'elementor/frontend/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
 add_action( 'elementor/editor/after_enqueue_styles', 'gm2_search_enqueue_elementor_widget_styles' );
+
+/**
+ * Ensure the widget script is present inside the Elementor editor preview
+ * so interactive controls (like the category multi-select) work as expected.
+ */
+function gm2_search_enqueue_elementor_widget_scripts() {
+    if ( wp_script_is( 'gm2-search-widget', 'registered' ) ) {
+        wp_enqueue_script( 'gm2-search-widget' );
+    }
+}
+add_action( 'elementor/frontend/after_enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
+add_action( 'elementor/editor/after_enqueue_scripts', 'gm2_search_enqueue_elementor_widget_scripts' );
