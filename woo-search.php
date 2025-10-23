@@ -569,73 +569,47 @@ function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escap
 add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 10, 3 );
 
 /**
- * Inject active Gm2 query arguments into pagination markup generated via paginate_links().
+ * Ensure active Gm2 query arguments are passed into paginate_links() so themes that rely on the
+ * helper inherit the widget filters via the standard add_args parameter instead of rewriting the
+ * generated HTML.
  *
- * Some themes build pagination links using paginate_links() without relying on
- * get_pagenum_link(), which means the gm2_search_preserve_query_args_in_pagination()
- * filter above is bypassed. In that scenario the additional search parameters configured
- * in the widget (post types, category filters, ordering, etc.) are dropped once a user
- * clicks to a different results page. By mirroring Elementor's approach and ensuring the
- * arguments are present directly on the final markup we keep the search constrained across
- * all pagination implementations.
- *
- * @param string|array<int, string> $links Pagination output.
- * @param array<string, mixed>      $args  Arguments passed to paginate_links().
- * @return string|array<int, string>
+ * @param array<string, mixed> $args Arguments provided to paginate_links().
+ * @return array<string, mixed>
  */
-function gm2_search_preserve_query_args_in_paginate_links( $links, $args ) {
-    if ( empty( $links ) ) {
-        return $links;
-    }
-
+function gm2_search_merge_paginate_links_args( $args ) {
     if ( is_admin() ) {
-        return $links;
+        return $args;
     }
 
     $query_args = gm2_search_get_active_query_args();
 
     if ( empty( $query_args ) ) {
-        return $links;
+        return $args;
     }
 
-    $append_query_args = static function( $link_html ) use ( $query_args ) {
-        if ( ! is_string( $link_html ) || '' === $link_html ) {
-            return $link_html;
+    if ( empty( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args;
+        return $args;
+    }
+
+    if ( is_array( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args + $args['add_args'];
+        return $args;
+    }
+
+    if ( is_string( $args['add_args'] ) ) {
+        parse_str( $args['add_args'], $existing_args );
+        if ( ! is_array( $existing_args ) ) {
+            $existing_args = [];
         }
 
-        return preg_replace_callback(
-            "/href=(['\"])([^'\"]*)\\1/",
-            static function( $matches ) use ( $query_args ) {
-                $quote        = $matches[1];
-                $original_url = $matches[2];
-                $updated_url  = add_query_arg( $query_args, $original_url );
-
-                return 'href=' . $quote . esc_url( $updated_url ) . $quote;
-            },
-            $link_html
-        );
-    };
-
-    if ( is_array( $links ) ) {
-        foreach ( $links as $index => $link_html ) {
-            // Links without an href attribute (for example the current page span) are left untouched.
-            if ( ! is_string( $link_html ) || false === strpos( $link_html, 'href=' ) ) {
-                continue;
-            }
-
-            $links[ $index ] = $append_query_args( $link_html );
-        }
-
-        return $links;
+        $args['add_args'] = $query_args + $existing_args;
+        return $args;
     }
 
-    if ( ! is_string( $links ) || false === strpos( $links, 'href=' ) ) {
-        return $links;
-    }
-
-    return $append_query_args( $links );
+    return $args;
 }
-add_filter( 'paginate_links', 'gm2_search_preserve_query_args_in_paginate_links', 10, 2 );
+add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
 
 /**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
