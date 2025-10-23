@@ -498,6 +498,22 @@ function gm2_search_get_active_query_args() {
         }
     }
 
+    $search_query = get_query_var( 's' );
+
+    if ( ! is_string( $search_query ) || '' === $search_query ) {
+        $search_query = get_search_query( false );
+    }
+
+    if ( ! is_string( $search_query ) || '' === $search_query ) {
+        if ( isset( $_GET['s'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $search_query = sanitize_text_field( wp_unslash( $_GET['s'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        }
+    }
+
+    if ( is_string( $search_query ) && '' !== $search_query ) {
+        $args['s'] = $search_query;
+    }
+
     $category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
     if ( ! empty( $category_slugs ) ) {
         $args['gm2_category_filter'] = implode( ',', $category_slugs );
@@ -545,17 +561,22 @@ function gm2_search_get_active_query_args() {
         }
     }
 
+    $post_types = [];
+
     if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $post_types = wp_unslash( $_GET['post_type'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $post_types = array_map( 'sanitize_key', (array) $post_types );
-        $post_types = array_filter( $post_types );
+    } elseif ( get_query_var( 'post_type' ) ) {
+        $post_types = get_query_var( 'post_type' );
+    }
 
-        if ( ! empty( $post_types ) ) {
-            if ( 1 === count( $post_types ) ) {
-                $args['post_type'] = reset( $post_types );
-            } else {
-                $args['post_type'] = array_values( $post_types );
-            }
+    $post_types = array_map( 'sanitize_key', (array) $post_types );
+    $post_types = array_filter( $post_types );
+
+    if ( ! empty( $post_types ) ) {
+        if ( 1 === count( $post_types ) ) {
+            $args['post_type'] = reset( $post_types );
+        } else {
+            $args['post_type'] = array_values( $post_types );
         }
     }
 
