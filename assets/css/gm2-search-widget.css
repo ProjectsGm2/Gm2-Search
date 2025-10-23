@@ -205,6 +205,64 @@
     padding: 0 var(--gm2-search-control-padding-x);
 }
 
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__container {
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-height: var(--gm2-search-control-height);
+    background-color: #f4f5f7;
+    border: 1px solid rgba(24, 31, 43, 0.12);
+    border-radius: 4px;
+    overflow: hidden;
+    gap: var(--gm2-search-control-gap, 0px);
+    box-sizing: border-box;
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__container > * {
+    align-self: stretch;
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__category,
+.elementor-editor-active .elementor-widget-gm2-search-bar .gm2-category-filter,
+.elementor-editor-active .elementor-widget-gm2-search-bar .gm2-category-filter__toggle,
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__input,
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__category-select,
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__submit {
+    min-height: var(--gm2-search-control-height);
+    height: 100%;
+    line-height: calc(var(--gm2-search-control-height) - 2px);
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__input,
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__category-select {
+    padding: 0 var(--gm2-search-control-padding-x);
+    font-size: 16px;
+    display: block;
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__category-select {
+    border-right: 1px solid rgba(24, 31, 43, 0.12) !important;
+    background-image: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .gm2-category-filter__toggle {
+    padding: 0 var(--gm2-search-control-padding-x);
+    background: none;
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .gm2-category-filter__value-text {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--gm2-search-control-height);
+}
+
+.elementor-editor-active .elementor-widget-gm2-search-bar .elementor-search-form__submit {
+    padding: 0 24px;
+}
+
 .elementor-search-form__input::placeholder {
     line-height: inherit;
 }
