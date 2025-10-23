@@ -264,6 +264,27 @@ function gm2_search_get_term_ids_from_slugs( $slugs, $taxonomy ) {
 }
 
 /**
+ * Resolve a taxonomy name from a request variable.
+ *
+ * @param string $key     Query parameter key.
+ * @param string $default Default taxonomy.
+ * @return string
+ */
+function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
+    $raw_taxonomy = isset( $_GET[ $key ] ) ? sanitize_key( wp_unslash( $_GET[ $key ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+    if ( $raw_taxonomy && taxonomy_exists( $raw_taxonomy ) ) {
+        return $raw_taxonomy;
+    }
+
+    if ( $default && taxonomy_exists( $default ) ) {
+        return $default;
+    }
+
+    return 'category';
+}
+
+/**
  * Convert a preset date range slug into a WP_Query-compatible date query.
  *
  * @param string $range Range slug.
@@ -320,15 +341,17 @@ function gm2_search_apply_query_parameters( $query ) {
         $query->set( 'post__not_in', $exclude_posts );
     }
 
+    $category_taxonomy = gm2_search_get_request_taxonomy( 'gm2_category_taxonomy', 'category' );
+
     $include_categories = gm2_search_get_request_ids( 'gm2_include_categories' );
     $exclude_categories = gm2_search_get_request_ids( 'gm2_exclude_categories' );
 
-    if ( ! empty( $include_categories ) || ! empty( $exclude_categories ) ) {
+    if ( ( ! empty( $include_categories ) || ! empty( $exclude_categories ) ) && taxonomy_exists( $category_taxonomy ) ) {
         $tax_query = (array) $query->get( 'tax_query' );
 
         if ( ! empty( $include_categories ) ) {
             $tax_query[] = [
-                'taxonomy' => 'category',
+                'taxonomy' => $category_taxonomy,
                 'field' => 'term_id',
                 'terms' => $include_categories,
                 'operator' => 'IN',
@@ -337,7 +360,7 @@ function gm2_search_apply_query_parameters( $query ) {
 
         if ( ! empty( $exclude_categories ) ) {
             $tax_query[] = [
-                'taxonomy' => 'category',
+                'taxonomy' => $category_taxonomy,
                 'field' => 'term_id',
                 'terms' => $exclude_categories,
                 'operator' => 'NOT IN',
@@ -348,13 +371,13 @@ function gm2_search_apply_query_parameters( $query ) {
     }
 
     $filter_category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
-    if ( ! empty( $filter_category_slugs ) ) {
-        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, 'category' );
+    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_taxonomy ) ) {
+        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_taxonomy );
 
         if ( ! empty( $filter_category_ids ) ) {
             $tax_query   = (array) $query->get( 'tax_query' );
             $tax_query[] = [
-                'taxonomy' => 'category',
+                'taxonomy' => $category_taxonomy,
                 'field'    => 'term_id',
                 'terms'    => $filter_category_ids,
                 'operator' => 'IN',
