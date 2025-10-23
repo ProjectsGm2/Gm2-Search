@@ -331,6 +331,23 @@ function gm2_search_apply_query_parameters( $query ) {
         return;
     }
 
+    $elementor_page = 0;
+
+    if ( isset( $_GET['e-search-page'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $elementor_page = absint( wp_unslash( $_GET['e-search-page'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
+
+    if ( $elementor_page > 0 ) {
+        $current_paged = absint( $query->get( 'paged' ) );
+
+        if ( $elementor_page !== $current_paged ) {
+            $query->set( 'paged', $elementor_page );
+            $query->set( 'page', $elementor_page );
+            set_query_var( 'paged', $elementor_page );
+            set_query_var( 'page', $elementor_page );
+        }
+    }
+
     $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
     if ( ! empty( $include_posts ) ) {
         $query->set( 'post__in', $include_posts );
