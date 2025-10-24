@@ -13,7 +13,6 @@
             searchTerm: '',
             categoryFilter: '',
             categoryTaxonomy: '',
-            resultsTemplateId: '',
         };
 
         if ( ! $forms.length ) {
@@ -46,14 +45,6 @@
                     state.categoryTaxonomy = taxonomyValue;
                 }
             }
-
-            if ( ! state.resultsTemplateId ) {
-                const templateValue = $form.find( 'input[name="gm2_results_template_id"]' ).val();
-
-                if ( templateValue ) {
-                    state.resultsTemplateId = templateValue;
-                }
-            }
         } );
 
         return state;
@@ -74,10 +65,6 @@
 
         if ( state.categoryTaxonomy ) {
             params.set( 'gm2_category_taxonomy', state.categoryTaxonomy );
-        }
-
-        if ( state.resultsTemplateId ) {
-            params.set( 'gm2_results_template_id', state.resultsTemplateId );
         }
     };
 
