@@ -2087,7 +2087,12 @@ function gm2_get_filter_products() {
 
         while ( $query->have_posts() ) {
             $query->the_post();
-            wc_get_template_part( 'content', 'product' );
+
+            if ( function_exists( 'wc_get_template_part' ) ) {
+                wc_get_template_part( 'content', 'product' );
+            } else {
+                get_template_part( 'content', get_post_type() );
+            }
         }
 
         if ( function_exists( 'woocommerce_product_loop_end' ) ) {
@@ -2102,7 +2107,11 @@ function gm2_get_filter_products() {
             wc_reset_loop();
         }
     } else {
-        wc_no_products_found();
+        if ( function_exists( 'wc_no_products_found' ) ) {
+            wc_no_products_found();
+        } else {
+            echo '<p>' . esc_html__( 'No products found.', 'woo-search-optimized' ) . '</p>';
+        }
     }
 
     $content = ob_get_clean();
