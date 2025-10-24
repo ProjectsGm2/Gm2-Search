@@ -641,8 +641,10 @@ function gm2_search_build_date_query( $range ) {
     ];
 }
 
-function gm2_search_populate_query_from_request( $query ) {
-    $is_main_query = method_exists( $query, 'is_main_query' ) ? $query->is_main_query() : false;
+function gm2_search_build_query_args_from_request( array $overrides = [] ) {
+    $args = [
+        'post_status' => 'publish',
+    ];
 
     $post_types = gm2_search_get_request_post_types();
 
@@ -651,56 +653,33 @@ function gm2_search_populate_query_from_request( $query ) {
     }
 
     if ( 1 === count( $post_types ) ) {
-        $single_post_type = reset( $post_types );
-        $query->set( 'post_type', $single_post_type );
-        if ( $is_main_query ) {
-            set_query_var( 'post_type', $single_post_type );
-        }
+        $args['post_type'] = reset( $post_types );
     } elseif ( ! empty( $post_types ) ) {
-        $query->set( 'post_type', $post_types );
-        if ( $is_main_query ) {
-            set_query_var( 'post_type', $post_types );
-        }
-    } elseif ( ! empty( $post_types ) ) {
-        $query->set( 'post_type', $post_types );
-        if ( $is_main_query ) {
-            set_query_var( 'post_type', $post_types );
-        }
+        $args['post_type'] = array_values( $post_types );
     }
 
-    $post_types = gm2_search_get_request_post_types();
-
-    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
-        $post_types = [ 'product' ];
-    }
-
-    if ( 1 === count( $post_types ) ) {
-        $single_post_type = reset( $post_types );
-        $query->set( 'post_type', $single_post_type );
-        set_query_var( 'post_type', $single_post_type );
-    } elseif ( ! empty( $post_types ) ) {
-        $query->set( 'post_type', $post_types );
-        set_query_var( 'post_type', $post_types );
+    $search_term = gm2_search_get_request_search_term();
+    if ( '' !== $search_term ) {
+        $args['s'] = $search_term;
     }
 
     $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
     if ( ! empty( $include_posts ) ) {
-        $query->set( 'post__in', $include_posts );
+        $args['post__in'] = $include_posts;
     }
 
     $exclude_posts = gm2_search_get_request_ids( 'gm2_exclude_posts' );
     if ( ! empty( $exclude_posts ) ) {
-        $query->set( 'post__not_in', $exclude_posts );
+        $args['post__not_in'] = $exclude_posts;
     }
 
     $category_taxonomy = gm2_search_get_request_taxonomy( 'gm2_category_taxonomy', 'category' );
 
     $include_categories = gm2_search_get_request_ids( 'gm2_include_categories' );
     $exclude_categories = gm2_search_get_request_ids( 'gm2_exclude_categories' );
+    $tax_query          = [];
 
     if ( ( ! empty( $include_categories ) || ! empty( $exclude_categories ) ) && taxonomy_exists( $category_taxonomy ) ) {
-        $tax_query = (array) $query->get( 'tax_query' );
-
         if ( ! empty( $include_categories ) ) {
             $tax_query[] = [
                 'taxonomy' => $category_taxonomy,
@@ -718,27 +697,25 @@ function gm2_search_populate_query_from_request( $query ) {
                 'operator' => 'NOT IN',
             ];
         }
-
-        $query->set( 'tax_query', $tax_query );
     }
 
-    $category_filter_taxonomy = gm2_search_get_request_taxonomy( 'gm2_category_taxonomy', 'category' );
-    $filter_category_slugs    = gm2_search_get_request_slugs( 'gm2_category_filter' );
+    $filter_category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
 
-    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_filter_taxonomy ) ) {
-        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_filter_taxonomy );
+    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_taxonomy ) ) {
+        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_taxonomy );
 
         if ( ! empty( $filter_category_ids ) ) {
-            $tax_query   = (array) $query->get( 'tax_query' );
             $tax_query[] = [
-                'taxonomy' => $category_filter_taxonomy,
+                'taxonomy' => $category_taxonomy,
                 'field'    => 'term_id',
                 'terms'    => $filter_category_ids,
                 'operator' => 'IN',
             ];
-
-            $query->set( 'tax_query', $tax_query );
         }
+    }
+
+    if ( ! empty( $tax_query ) ) {
+        $args['tax_query'] = $tax_query;
     }
 
     $date_range_raw = gm2_search_get_request_var( 'gm2_date_range' );
@@ -748,7 +725,7 @@ function gm2_search_populate_query_from_request( $query ) {
         $date_query = gm2_search_build_date_query( $date_range );
 
         if ( $date_query ) {
-            $query->set( 'date_query', [ $date_query ] );
+            $args['date_query'] = [ $date_query ];
         }
     }
 
@@ -759,32 +736,86 @@ function gm2_search_populate_query_from_request( $query ) {
     $order    = is_string( $order_raw ) ? strtoupper( sanitize_text_field( $order_raw ) ) : '';
 
     if ( $order_by ) {
-        $query->set( 'gm2_orderby', $order_by );
+        $args['gm2_orderby'] = $order_by;
 
-        if ( 'rand' === $order_by ) {
-            $query->set( 'orderby', 'rand' );
-        } elseif ( in_array( $order_by, [ 'date', 'title' ], true ) ) {
-            $query->set( 'orderby', $order_by );
-        } elseif ( 'price' === $order_by ) {
-            $query->set( 'orderby', 'meta_value_num' );
-            $query->set( 'meta_key', '_price' );
+        switch ( $order_by ) {
+            case 'date':
+                $args['orderby'] = 'date';
+                break;
+            case 'title':
+                $args['orderby'] = 'title';
+                break;
+            case 'price':
+                $args['orderby'] = 'meta_value_num';
+                $args['meta_key'] = '_price';
+                break;
+            case 'rand':
+                $args['orderby'] = 'rand';
+                break;
+            case 'relevance':
+            default:
+                $args['orderby'] = 'relevance';
+                break;
         }
     }
 
     if ( in_array( $order, [ 'ASC', 'DESC' ], true ) ) {
-        $query->set( 'gm2_order', $order );
-        $query->set( 'order', $order );
+        $args['gm2_order'] = $order;
+        $args['order']     = $order;
     }
 
     $query_id_raw = gm2_search_get_request_var( 'gm2_query_id' );
     $query_id     = is_string( $query_id_raw ) ? sanitize_key( $query_id_raw ) : '';
 
     if ( ! empty( $query_id ) ) {
-        $query->set( 'gm2_query_id', $query_id );
+        $args['gm2_query_id'] = $query_id;
+    }
+
+    $category_taxonomy_raw = gm2_search_get_request_var( 'gm2_category_taxonomy' );
+    if ( is_string( $category_taxonomy_raw ) ) {
+        $taxonomy = sanitize_key( $category_taxonomy_raw );
+        if ( $taxonomy && taxonomy_exists( $taxonomy ) ) {
+            $args['gm2_category_taxonomy'] = $taxonomy;
+        }
+    }
+
+    $posts_per_page_raw = gm2_search_get_request_var( 'posts_per_page' );
+    if ( '' !== $posts_per_page_raw && null !== $posts_per_page_raw ) {
+        $args['posts_per_page'] = max( 1, absint( $posts_per_page_raw ) );
+    }
+
+    $paged_raw = gm2_search_get_request_var( 'paged' );
+    if ( null === $paged_raw ) {
+        $paged_raw = gm2_search_get_request_var( 'page' );
+    }
+
+    if ( null !== $paged_raw && '' !== $paged_raw ) {
+        $args['paged'] = max( 1, absint( $paged_raw ) );
+    }
+
+    $args = array_merge( $args, $overrides );
+
+    return apply_filters( 'gm2_search_query_args', $args, $overrides );
+}
+
+function gm2_search_populate_query_from_request( $query ) {
+    $is_main_query = method_exists( $query, 'is_main_query' ) ? $query->is_main_query() : false;
+
+    $args = gm2_search_build_query_args_from_request();
+
+    foreach ( $args as $key => $value ) {
+        $query->set( $key, $value );
+
+        if ( $is_main_query ) {
+            set_query_var( $key, $value );
+        }
+    }
+
+    if ( isset( $args['gm2_query_id'] ) && ! empty( $args['gm2_query_id'] ) ) {
         /**
          * Allow developers to hook into the customised search query.
          */
-        do_action( 'gm2_search/query/' . $query_id, $query );
+        do_action( 'gm2_search/query/' . $args['gm2_query_id'], $query );
     }
 }
 
@@ -1496,6 +1527,251 @@ function gm2_search_merge_woocommerce_pagination_args( $args ) {
     return $args;
 }
 add_filter( 'woocommerce_pagination_args', 'gm2_search_merge_woocommerce_pagination_args', 15 );
+
+/**
+ * Render the action controls for a product card, including the quantity selector when supported.
+ *
+ * @param WC_Product|int|null $product Product instance or product ID.
+ * @return void
+ */
+function gm2_search_render_product_action_controls( $product = null ) {
+    if ( ! function_exists( 'woocommerce_template_loop_add_to_cart' ) || ! class_exists( 'WC_Product' ) ) {
+        return;
+    }
+
+    if ( ! $product instanceof WC_Product ) {
+        $product = wc_get_product( $product ? $product : get_the_ID() );
+    }
+
+    if ( ! $product ) {
+        woocommerce_template_loop_add_to_cart();
+        return;
+    }
+
+    if ( $product->is_type( 'simple' ) && $product->is_purchasable() && $product->is_in_stock() && ! $product->is_sold_individually() ) {
+        $min_value = $product->get_min_purchase_quantity();
+        $max_value = $product->get_max_purchase_quantity();
+        $quantity  = $min_value ? $min_value : 1;
+
+        $button_classes = array_filter(
+            [
+                'button',
+                'add_to_cart_button',
+                $product->supports( 'ajax_add_to_cart' ) ? 'ajax_add_to_cart' : '',
+                'product_type_' . $product->get_type(),
+            ]
+        );
+        ?>
+        <form class="cart gm2-search-loop__cart-form" action="<?php echo esc_url( $product->add_to_cart_url() ); ?>" method="post" enctype="multipart/form-data">
+            <?php
+            woocommerce_quantity_input(
+                [
+                    'input_name'  => 'quantity',
+                    'input_value' => $quantity,
+                    'min_value'   => $min_value,
+                    'max_value'   => $max_value,
+                ],
+                $product
+            );
+            ?>
+            <input type="hidden" name="add-to-cart" value="<?php echo esc_attr( $product->get_id() ); ?>" />
+            <button type="submit" class="<?php echo esc_attr( implode( ' ', $button_classes ) ); ?>" data-product_id="<?php echo esc_attr( $product->get_id() ); ?>" data-product_sku="<?php echo esc_attr( $product->get_sku() ); ?>" aria-label="<?php echo esc_attr( $product->add_to_cart_description() ); ?>">
+                <?php echo esc_html( $product->add_to_cart_text() ); ?>
+            </button>
+        </form>
+        <?php
+        return;
+    }
+
+    woocommerce_template_loop_add_to_cart();
+}
+
+/**
+ * Render a single product card using the custom gm2 template.
+ *
+ * @param WC_Product|int|null $product Product instance or product ID.
+ * @return void
+ */
+function gm2_search_render_product_card( $product = null ) {
+    if ( ! function_exists( 'wc_get_template' ) || ! class_exists( 'WC_Product' ) ) {
+        return;
+    }
+
+    $had_global_product = array_key_exists( 'product', $GLOBALS );
+    $previous_product   = $had_global_product ? $GLOBALS['product'] : null;
+
+    if ( ! $product instanceof WC_Product ) {
+        $product = wc_get_product( $product ? $product : get_the_ID() );
+    }
+
+    if ( ! $product || ! $product->is_visible() ) {
+        return;
+    }
+
+    $GLOBALS['product'] = $product;
+
+    wc_get_template(
+        'parts/gm2-search-product-card.php',
+        [],
+        '',
+        plugin_dir_path( __FILE__ ) . 'templates/'
+    );
+
+    if ( $had_global_product ) {
+        $GLOBALS['product'] = $previous_product;
+    } else {
+        unset( $GLOBALS['product'] );
+    }
+}
+
+/**
+ * Ajax handler for loading filtered products while preserving the search term and filters.
+ *
+ * @return void
+ */
+function gm2_get_filter_products() {
+    if ( ! function_exists( 'wc_get_template' ) ) {
+        wp_send_json_error( [ 'message' => __( 'WooCommerce is required to use this search.', 'woo-search-optimized' ) ] );
+    }
+
+    $query_args = gm2_search_build_query_args_from_request();
+
+    if ( empty( $query_args['post_type'] ) && post_type_exists( 'product' ) ) {
+        $query_args['post_type'] = 'product';
+    }
+
+    $paged = isset( $query_args['paged'] ) ? max( 1, absint( $query_args['paged'] ) ) : 1;
+    $query_args['paged'] = $paged;
+
+    if ( empty( $query_args['posts_per_page'] ) ) {
+        $query_args['posts_per_page'] = absint( get_option( 'posts_per_page', 12 ) );
+    }
+
+    $query = new WP_Query( $query_args );
+
+    ob_start();
+
+    if ( $query->have_posts() ) {
+        if ( function_exists( 'wc_setup_loop' ) ) {
+            wc_setup_loop(
+                [
+                    'total'        => $query->found_posts,
+                    'total_pages'  => $query->max_num_pages,
+                    'per_page'     => (int) $query->get( 'posts_per_page' ),
+                    'current'      => $paged,
+                    'is_search'    => true,
+                    'is_paginated' => $query->max_num_pages > 1,
+                ]
+            );
+        }
+
+        if ( function_exists( 'woocommerce_product_loop_start' ) ) {
+            woocommerce_product_loop_start();
+        }
+
+        while ( $query->have_posts() ) {
+            $query->the_post();
+            gm2_search_render_product_card();
+        }
+
+        if ( function_exists( 'woocommerce_product_loop_end' ) ) {
+            woocommerce_product_loop_end();
+        }
+
+        if ( function_exists( 'wc_reset_loop' ) ) {
+            wc_reset_loop();
+        }
+    } else {
+        wc_get_template( 'loop/no-products-found.php' );
+    }
+
+    $content = ob_get_clean();
+
+    wp_reset_postdata();
+
+    $search_term = gm2_search_get_request_search_term();
+    $category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
+    $category_value = ! empty( $category_slugs ) ? implode( ',', $category_slugs ) : '';
+    $taxonomy_value = '';
+    $taxonomy_raw   = gm2_search_get_request_var( 'gm2_category_taxonomy' );
+
+    if ( is_string( $taxonomy_raw ) ) {
+        $taxonomy = sanitize_key( $taxonomy_raw );
+        if ( $taxonomy && taxonomy_exists( $taxonomy ) ) {
+            $taxonomy_value = $taxonomy;
+        }
+    }
+
+    $add_args = [];
+    if ( '' !== $search_term ) {
+        $add_args['s'] = $search_term;
+    }
+    if ( '' !== $category_value ) {
+        $add_args['gm2_category_filter'] = $category_value;
+    }
+    if ( '' !== $taxonomy_value ) {
+        $add_args['gm2_category_taxonomy'] = $taxonomy_value;
+    }
+
+    $pagination = paginate_links(
+        [
+            'total'    => max( 1, (int) $query->max_num_pages ),
+            'current'  => $paged,
+            'type'     => 'plain',
+            'add_args' => $add_args,
+        ]
+    );
+
+    wp_send_json_success(
+        [
+            'content'    => $content,
+            'pagination' => $pagination,
+            'max_pages'  => (int) $query->max_num_pages,
+        ]
+    );
+}
+add_action( 'wp_ajax_gm2_get_filter_products', 'gm2_get_filter_products' );
+add_action( 'wp_ajax_nopriv_gm2_get_filter_products', 'gm2_get_filter_products' );
+
+/**
+ * Force the custom search loop template to load for product searches so the custom card is consistent.
+ *
+ * @param string $template Template path resolved by WordPress.
+ * @return string
+ */
+function gm2_search_use_custom_search_template( $template ) {
+    if ( gm2_search_is_backend_context() || is_admin() || ! function_exists( 'is_search' ) || ! is_search() ) {
+        return $template;
+    }
+
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) ) {
+        $queried = get_query_var( 'post_type' );
+        if ( $queried ) {
+            $post_types = (array) $queried;
+        }
+    }
+
+    if ( empty( $post_types ) ) {
+        $post_types = [ 'product' ];
+    }
+
+    $post_types = array_unique( array_map( 'sanitize_key', (array) $post_types ) );
+
+    if ( 1 !== count( $post_types ) || 'product' !== reset( $post_types ) ) {
+        return $template;
+    }
+
+    $custom_template = plugin_dir_path( __FILE__ ) . 'templates/gm2-search-loop.php';
+
+    if ( file_exists( $custom_template ) ) {
+        return $custom_template;
+    }
+
+    return $template;
+}
+add_filter( 'template_include', 'gm2_search_use_custom_search_template', 40 );
 
 /**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
