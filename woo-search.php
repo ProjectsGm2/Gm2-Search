@@ -707,16 +707,7 @@ function gm2_search_elementor_template_contains_results_loop( $template_id ) {
         if ( $document && method_exists( $document, 'get_elements_data' ) ) {
             $elements = $document->get_elements_data();
 
-            if ( gm2_search_elementor_elements_contain_widget(
-                $elements,
-                [
-                    'woocommerce-products',
-                    'archive-products',
-                    'woocommerce-products-archive',
-                    'woocommerce-archive-products',
-                    'woocommerce-product-archive',
-                ]
-            ) ) {
+            if ( gm2_search_elementor_elements_contain_widget( $elements, [ 'woocommerce-products', 'archive-products' ] ) ) {
                 $has_loop = true;
             }
         }
@@ -745,86 +736,6 @@ function gm2_search_elementor_template_contains_results_loop( $template_id ) {
  * @param array<int, string>               $widget_types Widget slugs to detect.
  * @return bool
  */
-function gm2_search_normalize_elementor_widget_type( $widget_type ) {
-    if ( ! is_string( $widget_type ) || '' === $widget_type ) {
-        return '';
-    }
-
-    $normalized = strtolower( $widget_type );
-
-    // Elementor appends skin identifiers after a dot, e.g. `woocommerce-products.default`.
-    $parts = preg_split( '/[.:]/', $normalized );
-    $normalized = ( $parts && isset( $parts[0] ) ) ? $parts[0] : $normalized;
-
-    $normalized = str_replace( '\\', '/', $normalized );
-    $normalized = trim( $normalized );
-
-    return sanitize_key( $normalized );
-}
-
-/**
- * Determine whether the provided Elementor loop grid widget is configured to query products.
- *
- * @param array<string, mixed> $element Elementor element definition.
- * @return bool
- */
-function gm2_search_elementor_loop_grid_targets_products( $element ) {
-    if ( empty( $element['settings'] ) || ! is_array( $element['settings'] ) ) {
-        return false;
-    }
-
-    $settings = $element['settings'];
-    $candidates = [];
-
-    foreach ( [ 'query_post_type', 'posts_post_type' ] as $key ) {
-        if ( isset( $settings[ $key ] ) ) {
-            $candidates[] = $settings[ $key ];
-        }
-    }
-
-    if ( isset( $settings['query'] ) && is_array( $settings['query'] ) ) {
-        $query_settings = $settings['query'];
-
-        foreach ( [ 'post_type', 'source', 'query_type' ] as $key ) {
-            if ( isset( $query_settings[ $key ] ) ) {
-                $candidates[] = $query_settings[ $key ];
-            }
-        }
-    }
-
-    foreach ( $candidates as $value ) {
-        if ( gm2_search_value_includes_product_post_type( $value ) ) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/**
- * Check if a value or list of values references WooCommerce products.
- *
- * @param mixed $value Value to inspect.
- * @return bool
- */
-function gm2_search_value_includes_product_post_type( $value ) {
-    if ( is_string( $value ) ) {
-        $normalized = sanitize_key( $value );
-
-        return in_array( $normalized, [ 'product', 'products', 'product_variation', 'woocommerce' ], true );
-    }
-
-    if ( is_array( $value ) ) {
-        foreach ( $value as $item ) {
-            if ( gm2_search_value_includes_product_post_type( $item ) ) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
 function gm2_search_elementor_elements_contain_widget( $elements, $widget_types ) {
     if ( empty( $elements ) || ! is_array( $elements ) ) {
         return false;
@@ -839,13 +750,8 @@ function gm2_search_elementor_elements_contain_widget( $elements, $widget_types 
 
         if ( 'widget' === $el_type ) {
             $widget_type = isset( $element['widgetType'] ) ? $element['widgetType'] : '';
-            $normalized  = gm2_search_normalize_elementor_widget_type( $widget_type );
 
-            if ( $normalized && in_array( $normalized, $widget_types, true ) ) {
-                return true;
-            }
-
-            if ( 'loop-grid' === $normalized && gm2_search_elementor_loop_grid_targets_products( $element ) ) {
+            if ( $widget_type && in_array( $widget_type, $widget_types, true ) ) {
                 return true;
             }
         }
@@ -874,12 +780,8 @@ function gm2_search_elementor_template_markup_has_results_loop( $content ) {
     $markers = [
         'elementor-widget-woocommerce-products',
         'elementor-widget-archive-products',
-        'elementor-widget-woocommerce-archive-products',
-        'elementor-widget-woocommerce-products-archive',
         'data-widget_type="woocommerce-products',
         'data-widget_type="archive-products',
-        'data-widget_type="woocommerce-archive-products',
-        'data-widget_type="woocommerce-products-archive',
     ];
 
     foreach ( $markers as $marker ) {
