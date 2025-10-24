@@ -186,156 +186,7 @@ function woo_search_opt_groupby( $groupby, $wp_query ) {
 add_filter('posts_groupby', 'woo_search_opt_groupby', 20, 2);
 
 /**
- * Safely normalise mixed Elementor AJAX payload fragments into arrays.
- *
- * We limit recursion depth and payload size so unexpected payloads cannot
- * trigger excessive processing.
- *
- * @param mixed $fragment Raw payload fragment.
- * @param int   $depth    Current recursion depth.
- * @return mixed
- */
-function gm2_search_normalize_request_fragment( $fragment, $depth = 0 ) {
-    if ( $depth > 6 ) {
-        return $fragment;
-    }
-
-    if ( is_array( $fragment ) ) {
-        foreach ( $fragment as $index => $value ) {
-            $fragment[ $index ] = gm2_search_normalize_request_fragment( $value, $depth + 1 );
-        }
-
-        return $fragment;
-    }
-
-    if ( ! is_string( $fragment ) ) {
-        return $fragment;
-    }
-
-    $trimmed = trim( $fragment );
-
-    if ( '' === $trimmed || strlen( $trimmed ) > 20000 ) {
-        return $fragment;
-    }
-
-    $first_character = substr( $trimmed, 0, 1 );
-    $last_character  = substr( $trimmed, -1 );
-
-    if ( ( '{' === $first_character && '}' === $last_character ) || ( '[' === $first_character && ']' === $last_character ) ) {
-        $decoded = json_decode( $trimmed, true );
-
-        if ( is_array( $decoded ) ) {
-            return gm2_search_normalize_request_fragment( $decoded, $depth + 1 );
-        }
-    }
-
-    if ( false !== strpos( $trimmed, '=' ) ) {
-        parse_str( $trimmed, $parsed );
-
-        if ( is_array( $parsed ) && ! empty( $parsed ) ) {
-            return gm2_search_normalize_request_fragment( $parsed, $depth + 1 );
-        }
-    }
-
-    return $fragment;
-}
-
-/**
- * Gather decoded Elementor AJAX payloads that might contain GM2 parameters.
- *
- * @return array<int, mixed>
- */
-function gm2_search_get_elementor_request_payloads() {
-    static $payloads = null;
-
-    if ( null !== $payloads ) {
-        return $payloads;
-    }
-
-    $payloads = [];
-    $candidates = [];
-
-    $candidate_keys = [ 'actions', 'data', 'args', 'settings' ];
-
-    foreach ( $candidate_keys as $candidate_key ) {
-        if ( isset( $_POST[ $candidate_key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-            $candidates[] = wp_unslash( $_POST[ $candidate_key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        }
-    }
-
-    foreach ( $candidates as $candidate ) {
-        $normalised = gm2_search_normalize_request_fragment( $candidate );
-
-        if ( is_array( $normalised ) ) {
-            $payloads[] = $normalised;
-        }
-    }
-
-    return $payloads;
-}
-
-/**
- * Locate a GM2 request value inside decoded Elementor payloads.
- *
- * @param string $key Requested parameter name.
- * @return mixed|null Matching value if present.
- */
-function gm2_search_find_in_elementor_payloads( $key ) {
-    $payloads = gm2_search_get_elementor_request_payloads();
-
-    foreach ( $payloads as $payload ) {
-        $found = gm2_search_search_payload_for_key( $payload, $key );
-
-        if ( null !== $found ) {
-            return $found;
-        }
-    }
-
-    return null;
-}
-
-/**
- * Search a payload fragment for a given key.
- *
- * @param mixed  $payload Payload fragment.
- * @param string $key     Requested key.
- * @param int    $depth   Recursion depth.
- * @return mixed|null
- */
-function gm2_search_search_payload_for_key( $payload, $key, $depth = 0 ) {
-    if ( $depth > 8 ) {
-        return null;
-    }
-
-    if ( is_array( $payload ) ) {
-        if ( array_key_exists( $key, $payload ) ) {
-            return $payload[ $key ];
-        }
-
-        foreach ( $payload as $value ) {
-            $found = gm2_search_search_payload_for_key( $value, $key, $depth + 1 );
-
-            if ( null !== $found ) {
-                return $found;
-            }
-        }
-
-        return null;
-    }
-
-    if ( is_string( $payload ) ) {
-        $normalised = gm2_search_normalize_request_fragment( $payload, $depth + 1 );
-
-        if ( $normalised !== $payload ) {
-            return gm2_search_search_payload_for_key( $normalised, $key, $depth + 1 );
-        }
-    }
-
-    return null;
-}
-
-/**
- * Unslash array or string payload values without altering other types.
+ * Recursively unslash string values without altering non-string types.
  *
  * @param mixed $value Raw value.
  * @return mixed
@@ -356,6 +207,150 @@ function gm2_search_maybe_unslash_value( $value ) {
     return $value;
 }
 
+/**
+ * Attempt to decode a JSON or query-string payload fragment.
+ *
+ * @param string $fragment Raw fragment string.
+ * @return array<string, mixed>|null
+ */
+function gm2_search_maybe_decode_payload_fragment( $fragment ) {
+    $fragment = trim( $fragment );
+
+    if ( '' === $fragment ) {
+        return null;
+    }
+
+    if ( strlen( $fragment ) > 20000 ) {
+        return null;
+    }
+
+    $first = substr( $fragment, 0, 1 );
+    $last  = substr( $fragment, -1 );
+
+    if ( ( '{' === $first && '}' === $last ) || ( '[' === $first && ']' === $last ) ) {
+        $decoded = json_decode( $fragment, true );
+
+        if ( is_array( $decoded ) ) {
+            return $decoded;
+        }
+    }
+
+    if ( false !== strpos( $fragment, '=' ) ) {
+        parse_str( $fragment, $parsed );
+
+        if ( is_array( $parsed ) && ! empty( $parsed ) ) {
+            return $parsed;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Search an Elementor payload fragment for a specific key.
+ *
+ * @param mixed  $payload Payload fragment.
+ * @param string $key     Requested key.
+ * @param int    $depth   Recursion depth.
+ * @return mixed|null
+ */
+function gm2_search_search_payload_for_key( $payload, $key, $depth = 0 ) {
+    if ( $depth > 6 ) {
+        return null;
+    }
+
+    if ( is_array( $payload ) ) {
+        if ( array_key_exists( $key, $payload ) ) {
+            return $payload[ $key ];
+        }
+
+        foreach ( $payload as $value ) {
+            $found = gm2_search_search_payload_for_key( $value, $key, $depth + 1 );
+
+            if ( null !== $found ) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    if ( is_string( $payload ) ) {
+        $decoded = gm2_search_maybe_decode_payload_fragment( $payload );
+
+        if ( is_array( $decoded ) ) {
+            return gm2_search_search_payload_for_key( $decoded, $key, $depth + 1 );
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Collect decoded Elementor AJAX payload fragments.
+ *
+ * @return array<int, mixed>
+ */
+function gm2_search_get_elementor_payloads() {
+    static $payloads = null;
+
+    if ( null !== $payloads ) {
+        return $payloads;
+    }
+
+    $payloads = [];
+    $candidate_keys = [ 'actions', 'data', 'settings', 'args' ];
+
+    foreach ( $candidate_keys as $candidate_key ) {
+        if ( ! isset( $_POST[ $candidate_key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            continue;
+        }
+
+        $value = gm2_search_maybe_unslash_value( $_POST[ $candidate_key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+
+        if ( is_array( $value ) ) {
+            $payloads[] = $value;
+            continue;
+        }
+
+        if ( is_string( $value ) ) {
+            $decoded = gm2_search_maybe_decode_payload_fragment( $value );
+
+            if ( is_array( $decoded ) ) {
+                $payloads[] = $decoded;
+            }
+        }
+    }
+
+    return $payloads;
+}
+
+/**
+ * Look for a GM2 request value inside Elementor payloads.
+ *
+ * @param string $key Requested parameter name.
+ * @return mixed|null
+ */
+function gm2_search_find_in_elementor_payloads( $key ) {
+    $payloads = gm2_search_get_elementor_payloads();
+
+    foreach ( $payloads as $payload ) {
+        $found = gm2_search_search_payload_for_key( $payload, $key );
+
+        if ( null !== $found ) {
+            return $found;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Retrieve a request value from $_GET, $_POST, or Elementor AJAX payloads.
+ *
+ * @param string $key Parameter key.
+ * @return mixed|null
+ */
 function gm2_search_get_request_var( $key ) {
     if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         return gm2_search_maybe_unslash_value( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -394,10 +389,6 @@ function gm2_search_get_request_var( $key ) {
 
 function gm2_search_get_request_ids( $key ) {
     $raw = gm2_search_get_request_var( $key );
-
-    if ( null === $raw ) {
-        return [];
-    }
 
     if ( is_array( $raw ) ) {
         $parts = $raw;
@@ -442,10 +433,6 @@ function gm2_search_get_request_post_types() {
  */
 function gm2_search_get_request_slugs( $key ) {
     $raw = gm2_search_get_request_var( $key );
-
-    if ( null === $raw ) {
-        return [];
-    }
 
     if ( is_array( $raw ) ) {
         $parts = $raw;
@@ -495,13 +482,8 @@ function gm2_search_get_term_ids_from_slugs( $slugs, $taxonomy ) {
  * @return string
  */
 function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
-    $raw_taxonomy = gm2_search_get_request_var( $key );
-
-    if ( is_string( $raw_taxonomy ) ) {
-        $raw_taxonomy = sanitize_key( $raw_taxonomy );
-    } else {
-        $raw_taxonomy = '';
-    }
+    $raw = gm2_search_get_request_var( $key );
+    $raw_taxonomy = is_string( $raw ) ? sanitize_key( $raw ) : '';
 
     if ( $raw_taxonomy && taxonomy_exists( $raw_taxonomy ) ) {
         return $raw_taxonomy;
@@ -512,6 +494,29 @@ function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
     }
 
     return 'category';
+}
+
+/**
+ * Retrieve post types provided in the current request or query vars.
+ *
+ * @return array<int, string>
+ */
+function gm2_search_get_request_post_types() {
+    $post_types = gm2_search_get_request_var( 'post_type' );
+
+    if ( null === $post_types && get_query_var( 'post_type' ) ) {
+        $post_types = get_query_var( 'post_type' );
+    }
+
+    $post_types = array_map( 'sanitize_key', (array) $post_types );
+    $post_types = array_filter(
+        $post_types,
+        static function ( $post_type ) {
+            return ! empty( $post_type ) && post_type_exists( $post_type );
+        }
+    );
+
+    return array_values( array_unique( $post_types ) );
 }
 
 /**
@@ -573,6 +578,11 @@ function gm2_search_populate_query_from_request( $query ) {
         if ( $is_main_query ) {
             set_query_var( 'post_type', $post_types );
         }
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        if ( $is_main_query ) {
+            set_query_var( 'post_type', $post_types );
+        }
     }
 
     $post_types = gm2_search_get_request_post_types();
@@ -611,8 +621,8 @@ function gm2_search_populate_query_from_request( $query ) {
         if ( ! empty( $include_categories ) ) {
             $tax_query[] = [
                 'taxonomy' => $category_taxonomy,
-                'field' => 'term_id',
-                'terms' => $include_categories,
+                'field'    => 'term_id',
+                'terms'    => $include_categories,
                 'operator' => 'IN',
             ];
         }
@@ -620,8 +630,8 @@ function gm2_search_populate_query_from_request( $query ) {
         if ( ! empty( $exclude_categories ) ) {
             $tax_query[] = [
                 'taxonomy' => $category_taxonomy,
-                'field' => 'term_id',
-                'terms' => $exclude_categories,
+                'field'    => 'term_id',
+                'terms'    => $exclude_categories,
                 'operator' => 'NOT IN',
             ];
         }
@@ -695,6 +705,11 @@ function gm2_search_populate_query_from_request( $query ) {
     }
 }
 
+/**
+ * Retrieve the active search term from the current request or query.
+ *
+ * @return string
+ */
 function gm2_search_get_request_search_term() {
     $search_query = get_query_var( 's' );
 
@@ -713,6 +728,9 @@ function gm2_search_get_request_search_term() {
     return is_string( $search_query ) ? $search_query : '';
 }
 
+/**
+ * Apply query configuration provided by the Elementor widget.
+ */
 function gm2_search_apply_query_parameters( $query ) {
     if ( is_admin() || ! $query->is_main_query() ) {
         return;
@@ -726,20 +744,6 @@ function gm2_search_apply_query_parameters( $query ) {
         }
 
         $query->set( 's', $search_term );
-    }
-
-    $elementor_page_raw = gm2_search_get_request_var( 'e-search-page' );
-    $elementor_page     = is_numeric( $elementor_page_raw ) ? absint( $elementor_page_raw ) : 0;
-
-    if ( $elementor_page > 0 ) {
-        $current_paged = absint( $query->get( 'paged' ) );
-
-        if ( $elementor_page !== $current_paged ) {
-            $query->set( 'paged', $elementor_page );
-            $query->set( 'page', $elementor_page );
-            set_query_var( 'paged', $elementor_page );
-            set_query_var( 'page', $elementor_page );
-        }
     }
 
     gm2_search_populate_query_from_request( $query );
@@ -789,6 +793,90 @@ function gm2_search_request_has_filters() {
     return ! empty( array_filter( $post_types ) );
 }
 
+function gm2_search_apply_secondary_product_queries( $query ) {
+    if ( is_admin() || $query->is_main_query() ) {
+        return;
+    }
+
+    if ( ! gm2_search_request_has_filters() ) {
+        return;
+    }
+
+    $post_type = $query->get( 'post_type' );
+
+    if ( empty( $post_type ) ) {
+        $post_type = gm2_search_get_request_post_types();
+    }
+
+    $post_types = (array) $post_type;
+
+    if ( empty( $post_types ) ) {
+        return;
+    }
+
+    $post_types = array_map( 'sanitize_key', $post_types );
+
+    if ( ! in_array( 'product', $post_types, true ) ) {
+        return;
+    }
+
+    gm2_search_populate_query_from_request( $query );
+}
+add_action( 'pre_get_posts', 'gm2_search_apply_secondary_product_queries', 11 );
+
+/**
+ * Determine whether the current request includes any GM2 filters.
+ *
+ * @return bool
+ */
+function gm2_search_request_has_filters() {
+    if ( '' !== gm2_search_get_request_search_term() ) {
+        return true;
+    }
+
+    $filter_keys = [
+        'gm2_include_posts',
+        'gm2_exclude_posts',
+        'gm2_include_categories',
+        'gm2_exclude_categories',
+        'gm2_category_filter',
+        'gm2_date_range',
+        'gm2_orderby',
+        'gm2_order',
+        'gm2_query_id',
+    ];
+
+    foreach ( $filter_keys as $key ) {
+        $value = gm2_search_get_request_var( $key );
+
+        if ( is_array( $value ) ) {
+            if ( ! empty( $value ) ) {
+                return true;
+            }
+            continue;
+        }
+
+        if ( is_string( $value ) && '' !== trim( $value ) ) {
+            return true;
+        }
+    }
+
+    $raw_post_type = gm2_search_get_request_var( 'post_type' );
+
+    if ( null === $raw_post_type ) {
+        return false;
+    }
+
+    $post_types = array_map( 'sanitize_key', (array) $raw_post_type );
+
+    return ! empty( array_filter( $post_types ) );
+}
+
+/**
+ * Apply GM2 filters to secondary product queries, such as Elementor widgets.
+ *
+ * @param WP_Query $query Query instance.
+ */
 function gm2_search_apply_secondary_product_queries( $query ) {
     if ( is_admin() || $query->is_main_query() ) {
         return;
