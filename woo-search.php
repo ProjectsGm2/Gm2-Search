@@ -211,6 +211,31 @@ function gm2_search_get_request_ids( $key ) {
 }
 
 /**
+ * Retrieve post types provided in the current request or query vars.
+ *
+ * @return array<int, string>
+ */
+function gm2_search_get_request_post_types() {
+    $post_types = [];
+
+    if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $post_types = wp_unslash( $_GET['post_type'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    } elseif ( get_query_var( 'post_type' ) ) {
+        $post_types = get_query_var( 'post_type' );
+    }
+
+    $post_types = array_map( 'sanitize_key', (array) $post_types );
+    $post_types = array_filter(
+        $post_types,
+        static function ( $post_type ) {
+            return ! empty( $post_type ) && post_type_exists( $post_type );
+        }
+    );
+
+    return array_values( array_unique( $post_types ) );
+}
+
+/**
  * Parse a comma or space separated list of slugs from a query variable.
  *
  * @param string $key Query parameter key.
@@ -346,6 +371,21 @@ function gm2_search_apply_query_parameters( $query ) {
             set_query_var( 'paged', $elementor_page );
             set_query_var( 'page', $elementor_page );
         }
+    }
+
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
+        $post_types = [ 'product' ];
+    }
+
+    if ( 1 === count( $post_types ) ) {
+        $single_post_type = reset( $post_types );
+        $query->set( 'post_type', $single_post_type );
+        set_query_var( 'post_type', $single_post_type );
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        set_query_var( 'post_type', $post_types );
     }
 
     $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
@@ -561,16 +601,7 @@ function gm2_search_get_active_query_args() {
         }
     }
 
-    $post_types = [];
-
-    if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $post_types = wp_unslash( $_GET['post_type'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    } elseif ( get_query_var( 'post_type' ) ) {
-        $post_types = get_query_var( 'post_type' );
-    }
-
-    $post_types = array_map( 'sanitize_key', (array) $post_types );
-    $post_types = array_filter( $post_types );
+    $post_types = gm2_search_get_request_post_types();
 
     if ( ! empty( $post_types ) ) {
         if ( 1 === count( $post_types ) ) {
