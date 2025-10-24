@@ -380,6 +380,18 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         );
 
         $this->add_control(
+            'results_template_id',
+            [
+                'label' => __( 'Results Template', 'woo-search-optimized' ),
+                'type' => Controls_Manager::SELECT2,
+                'label_block' => true,
+                'multiple' => false,
+                'options' => $this->get_results_template_options(),
+                'description' => __( 'Select an Elementor template to render each result item. Leave empty to use the default GM2 layout.', 'woo-search-optimized' ),
+            ]
+        );
+
+        $this->add_control(
             'heading_additional_settings',
             [
                 'type' => Controls_Manager::HEADING,
@@ -1201,6 +1213,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $order_by = $this->sanitize_order_by_value( isset( $settings['order_by'] ) ? $settings['order_by'] : '' );
         $order_direction = $this->sanitize_order_value( isset( $settings['order'] ) ? $settings['order'] : '' );
         $query_id = $this->sanitize_query_id( isset( $settings['query_id'] ) ? $settings['query_id'] : '' );
+        $results_template_id = $this->sanitize_results_template_id( isset( $settings['results_template_id'] ) ? $settings['results_template_id'] : '' );
         $submit_trigger = isset( $settings['submit_trigger'] ) ? $settings['submit_trigger'] : 'click_submit';
         $show_button_setting = ( isset( $settings['show_submit_button'] ) && 'yes' === $settings['show_submit_button'] );
         $show_button = $show_button_setting && 'key_enter' !== $submit_trigger;
@@ -1411,6 +1424,9 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 <?php if ( ! empty( $query_id ) ) : ?>
                     <input type="hidden" name="gm2_query_id" value="<?php echo esc_attr( $query_id ); ?>" />
                 <?php endif; ?>
+                <?php if ( ! empty( $results_template_id ) ) : ?>
+                    <input type="hidden" name="gm2_results_template_id" value="<?php echo esc_attr( $results_template_id ); ?>" />
+                <?php endif; ?>
                 <?php $active_taxonomy = $this->get_active_category_taxonomy(); ?>
                 <?php if ( $active_taxonomy ) : ?>
                     <input type="hidden" name="gm2_category_taxonomy" value="<?php echo esc_attr( $active_taxonomy ); ?>" />
@@ -1471,6 +1487,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const orderByValue = settings.order_by ? settings.order_by : '';
         const orderValue = settings.order ? settings.order : '';
         const queryIdValue = settings.query_id ? settings.query_id : '';
+        const resultsTemplateIdValue = settings.results_template_id ? settings.results_template_id : '';
 
         if ( showButton ) {
             if ( 'text_icon' === submitType ) {
@@ -1621,6 +1638,9 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                 <# if ( queryIdValue ) { #>
                     <input type="hidden" name="gm2_query_id" value="{{ queryIdValue }}" />
                 <# } #>
+                <# if ( resultsTemplateIdValue ) { #>
+                    <input type="hidden" name="gm2_results_template_id" value="{{ resultsTemplateIdValue }}" />
+                <# } #>
                 <input type="hidden" name="gm2_category_taxonomy" value="<?php echo esc_js( $this->get_active_category_taxonomy() ); ?>" />
             </div>
         </form>
@@ -1639,6 +1659,66 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
 
         foreach ( $post_types as $post_type => $object ) {
             $options[ $post_type ] = isset( $object->labels->singular_name ) ? $object->labels->singular_name : $post_type;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Fetch local Elementor templates for the results template control.
+     *
+     * @return array<int, string>
+     */
+    private function get_results_template_options() {
+        if ( ! class_exists( '\\Elementor\\Plugin' ) ) {
+            return [];
+        }
+
+        $plugin = \Elementor\Plugin::instance();
+
+        if ( ! $plugin || ! isset( $plugin->templates_manager ) ) {
+            return [];
+        }
+
+        $source = $plugin->templates_manager->get_source( 'local' );
+
+        if ( ! $source || ! method_exists( $source, 'get_items' ) ) {
+            return [];
+        }
+
+        $items = $source->get_items();
+
+        if ( empty( $items ) || ! is_array( $items ) ) {
+            return [];
+        }
+
+        $options = [];
+
+        foreach ( $items as $item ) {
+            if ( empty( $item['template_id'] ) ) {
+                continue;
+            }
+
+            $template_id = absint( $item['template_id'] );
+
+            if ( ! $template_id ) {
+                continue;
+            }
+
+            if ( isset( $item['title'] ) && '' !== $item['title'] ) {
+                $title = $item['title'];
+            } else {
+                /* translators: %d: Elementor template ID. */
+                $title = sprintf( __( 'Template #%d', 'woo-search-optimized' ), $template_id );
+            }
+            $type  = isset( $item['type'] ) ? $item['type'] : '';
+
+            if ( $type ) {
+                /* translators: 1: Template title, 2: Template type */
+                $options[ $template_id ] = sprintf( __( '%1$s (%2$s)', 'woo-search-optimized' ), $title, $type );
+            } else {
+                $options[ $template_id ] = $title;
+            }
         }
 
         return $options;
@@ -1734,6 +1814,14 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         $value = sanitize_key( (string) $value );
 
         return $value;
+    }
+
+    private function sanitize_results_template_id( $value ) {
+        if ( is_array( $value ) ) {
+            $value = reset( $value );
+        }
+
+        return absint( $value );
     }
 
     private function get_category_control_options() {
