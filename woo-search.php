@@ -369,24 +369,6 @@ function gm2_search_get_request_var( $key ) {
     return null;
 }
 
-/**
- * Parse a comma or space separated list of IDs from a query variable.
- *
- * @param string $key Query parameter key.
- * @return array<int>
- */
-function gm2_search_get_request_var( $key ) {
-    if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        return wp_unslash( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    }
-
-    if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        return wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-    }
-
-    return null;
-}
-
 function gm2_search_get_request_ids( $key ) {
     $raw = gm2_search_get_request_var( $key );
 
@@ -494,29 +476,6 @@ function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
     }
 
     return 'category';
-}
-
-/**
- * Retrieve post types provided in the current request or query vars.
- *
- * @return array<int, string>
- */
-function gm2_search_get_request_post_types() {
-    $post_types = gm2_search_get_request_var( 'post_type' );
-
-    if ( null === $post_types && get_query_var( 'post_type' ) ) {
-        $post_types = get_query_var( 'post_type' );
-    }
-
-    $post_types = array_map( 'sanitize_key', (array) $post_types );
-    $post_types = array_filter(
-        $post_types,
-        static function ( $post_type ) {
-            return ! empty( $post_type ) && post_type_exists( $post_type );
-        }
-    );
-
-    return array_values( array_unique( $post_types ) );
 }
 
 /**
@@ -793,90 +752,6 @@ function gm2_search_request_has_filters() {
     return ! empty( array_filter( $post_types ) );
 }
 
-function gm2_search_apply_secondary_product_queries( $query ) {
-    if ( is_admin() || $query->is_main_query() ) {
-        return;
-    }
-
-    if ( ! gm2_search_request_has_filters() ) {
-        return;
-    }
-
-    $post_type = $query->get( 'post_type' );
-
-    if ( empty( $post_type ) ) {
-        $post_type = gm2_search_get_request_post_types();
-    }
-
-    $post_types = (array) $post_type;
-
-    if ( empty( $post_types ) ) {
-        return;
-    }
-
-    $post_types = array_map( 'sanitize_key', $post_types );
-
-    if ( ! in_array( 'product', $post_types, true ) ) {
-        return;
-    }
-
-    gm2_search_populate_query_from_request( $query );
-}
-add_action( 'pre_get_posts', 'gm2_search_apply_secondary_product_queries', 11 );
-
-/**
- * Determine whether the current request includes any GM2 filters.
- *
- * @return bool
- */
-function gm2_search_request_has_filters() {
-    if ( '' !== gm2_search_get_request_search_term() ) {
-        return true;
-    }
-
-    $filter_keys = [
-        'gm2_include_posts',
-        'gm2_exclude_posts',
-        'gm2_include_categories',
-        'gm2_exclude_categories',
-        'gm2_category_filter',
-        'gm2_date_range',
-        'gm2_orderby',
-        'gm2_order',
-        'gm2_query_id',
-    ];
-
-    foreach ( $filter_keys as $key ) {
-        $value = gm2_search_get_request_var( $key );
-
-        if ( is_array( $value ) ) {
-            if ( ! empty( $value ) ) {
-                return true;
-            }
-            continue;
-        }
-
-        if ( is_string( $value ) && '' !== trim( $value ) ) {
-            return true;
-        }
-    }
-
-    $raw_post_type = gm2_search_get_request_var( 'post_type' );
-
-    if ( null === $raw_post_type ) {
-        return false;
-    }
-
-    $post_types = array_map( 'sanitize_key', (array) $raw_post_type );
-
-    return ! empty( array_filter( $post_types ) );
-}
-
-/**
- * Apply GM2 filters to secondary product queries, such as Elementor widgets.
- *
- * @param WP_Query $query Query instance.
- */
 function gm2_search_apply_secondary_product_queries( $query ) {
     if ( is_admin() || $query->is_main_query() ) {
         return;
