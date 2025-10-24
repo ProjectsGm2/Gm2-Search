@@ -380,6 +380,18 @@ function gm2_search_get_request_var( $key ) {
  * @param string $key Query parameter key.
  * @return array<int>
  */
+function gm2_search_get_request_var( $key ) {
+    if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        return wp_unslash( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
+
+    if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        return wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    }
+
+    return null;
+}
+
 function gm2_search_get_request_ids( $key ) {
     $raw = gm2_search_get_request_var( $key );
 
@@ -561,6 +573,21 @@ function gm2_search_populate_query_from_request( $query ) {
         if ( $is_main_query ) {
             set_query_var( 'post_type', $post_types );
         }
+    }
+
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
+        $post_types = [ 'product' ];
+    }
+
+    if ( 1 === count( $post_types ) ) {
+        $single_post_type = reset( $post_types );
+        $query->set( 'post_type', $single_post_type );
+        set_query_var( 'post_type', $single_post_type );
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        set_query_var( 'post_type', $post_types );
     }
 
     $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
