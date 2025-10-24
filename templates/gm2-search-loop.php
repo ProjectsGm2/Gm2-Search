@@ -40,11 +40,7 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
     do_action( 'woocommerce_before_shop_loop' );
 
     if ( ! $is_layout_template ) {
-        if ( function_exists( 'woocommerce_product_loop_start' ) ) {
-            woocommerce_product_loop_start();
-        } else {
-            echo '<ul class="products columns-4">';
-        }
+        woocommerce_product_loop_start();
     }
 
     if ( $is_layout_template ) {
@@ -57,11 +53,7 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
     }
 
     if ( ! $is_layout_template ) {
-        if ( function_exists( 'woocommerce_product_loop_end' ) ) {
-            woocommerce_product_loop_end();
-        } else {
-            echo '</ul>';
-        }
+        woocommerce_product_loop_end();
     }
 
     do_action( 'woocommerce_after_shop_loop' );
