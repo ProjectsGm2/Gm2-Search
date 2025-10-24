@@ -120,27 +120,6 @@ function gm2_search_log_event( $level, $message, array $context = [] ) {
 }
 
 /**
- * Determine whether the current request should be treated as an admin-only context.
- *
- * WordPress marks Ajax and REST requests as "admin" which prevented the search filters from
- * running when Elementor paginated via admin-ajax.php. We treat those interactive requests as
- * frontend contexts so pagination retains the active filters.
- *
- * @return bool
- */
-function gm2_search_is_backend_context() {
-    if ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) {
-        return false;
-    }
-
-    if ( function_exists( 'wp_doing_rest' ) && wp_doing_rest() ) {
-        return false;
-    }
-
-    return is_admin();
-}
-
-/**
  * Add JOINs for _price, _sku, and aggregated product attributes.
  * Unique alias names are used to avoid conflicts.
  */
@@ -1066,7 +1045,7 @@ function gm2_search_get_request_search_term() {
  * Apply query configuration provided by the Elementor widget.
  */
 function gm2_search_apply_query_parameters( $query ) {
-    if ( gm2_search_is_backend_context() || ! $query->is_main_query() ) {
+    if ( is_admin() || ! $query->is_main_query() ) {
         return;
     }
 
@@ -1129,7 +1108,7 @@ function gm2_search_request_has_filters() {
 }
 
 function gm2_search_apply_secondary_product_queries( $query ) {
-    if ( gm2_search_is_backend_context() || $query->is_main_query() ) {
+    if ( is_admin() || $query->is_main_query() ) {
         return;
     }
 
@@ -1338,13 +1317,12 @@ function gm2_search_get_active_query_args() {
  * @return string
  */
 function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape = true ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
-    if ( gm2_search_is_backend_context() ) {
+    if ( is_admin() ) {
         gm2_search_log_event(
             'debug',
-            'Pagination link preservation skipped for backend request.',
+            'Pagination link preservation skipped for admin request.',
             [
                 'result' => $result,
-                'ajax'   => function_exists( 'wp_doing_ajax' ) ? wp_doing_ajax() : null,
             ]
         );
         return $result;
@@ -1390,14 +1368,8 @@ add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 
  * @return array<string, mixed>
  */
 function gm2_search_merge_paginate_links_args( $args ) {
-    if ( gm2_search_is_backend_context() ) {
-        gm2_search_log_event(
-            'debug',
-            'paginate_links_args filter skipped for backend request.',
-            [
-                'ajax' => function_exists( 'wp_doing_ajax' ) ? wp_doing_ajax() : null,
-            ]
-        );
+    if ( is_admin() ) {
+        gm2_search_log_event( 'debug', 'paginate_links_args filter skipped for admin request.' );
         return $args;
     }
 
@@ -1487,14 +1459,8 @@ add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
  * @return string|array<int, string>
  */
 function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
-    if ( gm2_search_is_backend_context() ) {
-        gm2_search_log_event(
-            'debug',
-            'paginate_links output rewrite skipped for backend request.',
-            [
-                'ajax' => function_exists( 'wp_doing_ajax' ) ? wp_doing_ajax() : null,
-            ]
-        );
+    if ( is_admin() ) {
+        gm2_search_log_event( 'debug', 'paginate_links output rewrite skipped for admin request.' );
         return $links;
     }
 
@@ -1678,14 +1644,8 @@ add_filter( 'paginate_links', 'gm2_search_preserve_query_args_in_paginate_links_
  * @return array<string, mixed>
  */
 function gm2_search_merge_woocommerce_pagination_args( $args ) {
-    if ( gm2_search_is_backend_context() ) {
-        gm2_search_log_event(
-            'debug',
-            'WooCommerce pagination args filter skipped for backend request.',
-            [
-                'ajax' => function_exists( 'wp_doing_ajax' ) ? wp_doing_ajax() : null,
-            ]
-        );
+    if ( is_admin() ) {
+        gm2_search_log_event( 'debug', 'WooCommerce pagination args filter skipped for admin request.' );
         return $args;
     }
 
