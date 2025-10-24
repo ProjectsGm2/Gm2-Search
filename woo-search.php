@@ -423,7 +423,7 @@ function gm2_search_get_elementor_payloads() {
     }
 
     $payloads = [];
-    $candidate_keys = [ 'actions', 'data', 'settings', 'args' ];
+    $candidate_keys = [ 'actions', 'data', 'settings', 'args', 'query', 'query_vars', 'queryArgs', 'query_args' ];
 
     foreach ( $candidate_keys as $candidate_key ) {
         if ( ! isset( $_POST[ $candidate_key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
