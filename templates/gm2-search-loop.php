@@ -7,8 +7,6 @@ defined( 'ABSPATH' ) || exit;
 
 get_header( 'shop' );
 
-do_action( 'woocommerce_before_main_content' );
-
 global $wp_query;
 
 $render_state       = function_exists( 'gm2_search_get_results_template_render_state' ) ? gm2_search_get_results_template_render_state() : [ 'mode' => 'none', 'template_id' => 0 ];
@@ -91,8 +89,5 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
         wc_no_products_found();
     }
 }
-
-do_action( 'woocommerce_after_main_content' );
-do_action( 'woocommerce_sidebar' );
 
 get_footer( 'shop' );
