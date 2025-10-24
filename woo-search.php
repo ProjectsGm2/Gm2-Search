@@ -1685,24 +1685,11 @@ function gm2_search_merge_woocommerce_pagination_args( $args ) {
     }
 
     if ( ! empty( $args['base'] ) && is_string( $args['base'] ) ) {
-        $charset    = get_bloginfo( 'charset' );
+        $charset   = get_bloginfo( 'charset' );
         $query_keys = array_keys( $query_args );
-        $decoded    = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
-
-        // Preserve the pagination placeholders so add_query_arg() doesn't encode them.
-        $page_placeholder = 'gm2_page_placeholder_' . wp_rand();
-        $base_placeholder = 'gm2_base_placeholder_' . wp_rand();
-
-        $decoded = str_replace( '%#%', $page_placeholder, $decoded );
-        $decoded = str_replace( '%_%', $base_placeholder, $decoded );
-
+        $decoded  = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
         $stripped = remove_query_arg( $query_keys, $decoded );
-        $updated  = add_query_arg( $query_args, $stripped );
-
-        $updated = str_replace( $page_placeholder, '%#%', $updated );
-        $updated = str_replace( $base_placeholder, '%_%', $updated );
-
-        $args['base'] = esc_url_raw( $updated );
+        $args['base'] = esc_url_raw( add_query_arg( $query_args, $stripped ) );
     }
 
     gm2_search_log_event(
