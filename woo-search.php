@@ -17,6 +17,109 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Determine whether diagnostic logging is enabled for the plugin.
+ *
+ * Logging can be activated by defining the GM2_SEARCH_DEBUG constant or by
+ * hooking into the `gm2_search_logging_enabled` filter. When inactive the
+ * helper functions become no-ops so production environments are not affected.
+ *
+ * @return bool
+ */
+function gm2_search_is_logging_enabled() {
+    static $enabled = null;
+
+    if ( null !== $enabled ) {
+        return $enabled;
+    }
+
+    $default_flag = defined( 'GM2_SEARCH_DEBUG' ) ? GM2_SEARCH_DEBUG : ( defined( 'WP_DEBUG' ) ? WP_DEBUG : false );
+
+    /**
+     * Filter whether Gm2 search debugging is active.
+     *
+     * @param bool $is_enabled Whether logging should be activated.
+     */
+    $enabled = (bool) apply_filters( 'gm2_search_logging_enabled', $default_flag );
+
+    return $enabled;
+}
+
+/**
+ * Normalise a value for safe inclusion within a log entry.
+ *
+ * @param mixed $value Value to normalise.
+ * @return mixed
+ */
+function gm2_search_normalise_for_log( $value ) {
+    if ( is_null( $value ) || is_scalar( $value ) ) {
+        return $value;
+    }
+
+    if ( is_array( $value ) ) {
+        foreach ( $value as $key => $item ) {
+            $value[ $key ] = gm2_search_normalise_for_log( $item );
+        }
+
+        return $value;
+    }
+
+    if ( is_object( $value ) ) {
+        if ( class_exists( 'WP_Query' ) && $value instanceof WP_Query ) {
+            return 'WP_Query:' . spl_object_id( $value );
+        }
+
+        if ( method_exists( $value, '__toString' ) ) {
+            return (string) $value;
+        }
+
+        return 'object:' . get_class( $value );
+    }
+
+    return (string) $value;
+}
+
+/**
+ * Write a structured entry to the WooCommerce logger (if available) or the PHP
+ * error log. The context is JSON encoded to keep the output compact.
+ *
+ * @param string               $level   Log level.
+ * @param string               $message Message to record.
+ * @param array<string, mixed> $context Additional context.
+ * @return void
+ */
+function gm2_search_log_event( $level, $message, array $context = [] ) {
+    if ( ! gm2_search_is_logging_enabled() ) {
+        return;
+    }
+
+    $normalised_context = [];
+
+    foreach ( $context as $key => $value ) {
+        $normalised_context[ $key ] = gm2_search_normalise_for_log( $value );
+    }
+
+    $payload = $normalised_context ? wp_json_encode( $normalised_context ) : '';
+
+    if ( function_exists( 'wc_get_logger' ) ) {
+        $logger = wc_get_logger();
+        $logger->log(
+            $level,
+            $message . ( $payload ? ' ' . $payload : '' ),
+            [ 'source' => 'gm2-search' ]
+        );
+        return;
+    }
+
+    $line = '[GM2 Search] ' . strtoupper( $level ) . ': ' . $message;
+
+    if ( $payload ) {
+        $line .= ' ' . $payload;
+    }
+
+    error_log( $line ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+}
+
+/**
  * Add JOINs for _price, _sku, and aggregated product attributes.
  * Unique alias names are used to avoid conflicts.
  */
@@ -910,6 +1013,38 @@ function gm2_search_get_active_query_args() {
         }
     }
 
+    $snapshot_keys = array_merge(
+        $id_keys,
+        [
+            's',
+            'gm2_category_filter',
+            'gm2_category_taxonomy',
+            'gm2_date_range',
+            'gm2_orderby',
+            'gm2_order',
+            'gm2_query_id',
+            'post_type',
+        ]
+    );
+
+    $request_snapshot = [];
+
+    foreach ( $snapshot_keys as $key ) {
+        if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $value                    = wp_unslash( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $request_snapshot[ $key ] = is_array( $value ) ? array_map( 'sanitize_text_field', $value ) : sanitize_text_field( $value );
+        }
+    }
+
+    gm2_search_log_event(
+        'debug',
+        'Computed active Gm2 search query arguments.',
+        [
+            'query_args'       => $args,
+            'request_snapshot' => $request_snapshot,
+        ]
+    );
+
     return $args;
 }
 
@@ -923,16 +1058,44 @@ function gm2_search_get_active_query_args() {
  */
 function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escape = true ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid
     if ( is_admin() ) {
+        gm2_search_log_event(
+            'debug',
+            'Pagination link preservation skipped for admin request.',
+            [
+                'result' => $result,
+            ]
+        );
         return $result;
     }
 
     $args = gm2_search_get_active_query_args();
 
     if ( empty( $args ) ) {
+        gm2_search_log_event(
+            'debug',
+            'Pagination link preservation skipped because no active filters were detected.',
+            [
+                'result'  => $result,
+                'pagenum' => $pagenum,
+            ]
+        );
         return $result;
     }
 
-    return add_query_arg( $args, $result );
+    $updated = add_query_arg( $args, $result );
+
+    gm2_search_log_event(
+        'debug',
+        'Pagination link updated with active Gm2 filters.',
+        [
+            'original' => $result,
+            'updated'  => $updated,
+            'pagenum'  => $pagenum,
+            'escape'   => $escape,
+        ]
+    );
+
+    return $updated;
 }
 add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 10, 3 );
 
@@ -946,22 +1109,53 @@ add_filter( 'get_pagenum_link', 'gm2_search_preserve_query_args_in_pagination', 
  */
 function gm2_search_merge_paginate_links_args( $args ) {
     if ( is_admin() ) {
+        gm2_search_log_event( 'debug', 'paginate_links_args filter skipped for admin request.' );
         return $args;
     }
 
     $query_args = gm2_search_get_active_query_args();
 
     if ( empty( $query_args ) ) {
+        gm2_search_log_event(
+            'debug',
+            'paginate_links_args filter detected no active filters to merge.',
+            [
+                'args' => $args,
+            ]
+        );
         return $args;
     }
 
+    gm2_search_log_event(
+        'debug',
+        'Merging active filters into paginate_links() arguments.',
+        [
+            'incoming_args' => $args,
+            'active_args'   => $query_args,
+        ]
+    );
+
     if ( empty( $args['add_args'] ) ) {
         $args['add_args'] = $query_args;
+        gm2_search_log_event(
+            'debug',
+            'paginate_links() arguments initialised with active filters.',
+            [
+                'result_args' => $args,
+            ]
+        );
         return $args;
     }
 
     if ( is_array( $args['add_args'] ) ) {
         $args['add_args'] = $query_args + $args['add_args'];
+        gm2_search_log_event(
+            'debug',
+            'paginate_links() arguments merged with array add_args.',
+            [
+                'result_args' => $args,
+            ]
+        );
         return $args;
     }
 
@@ -972,8 +1166,23 @@ function gm2_search_merge_paginate_links_args( $args ) {
         }
 
         $args['add_args'] = $query_args + $existing_args;
+        gm2_search_log_event(
+            'debug',
+            'paginate_links() arguments merged with string add_args.',
+            [
+                'result_args' => $args,
+            ]
+        );
         return $args;
     }
+
+    gm2_search_log_event(
+        'debug',
+        'paginate_links() arguments left unchanged because add_args type is unsupported.',
+        [
+            'result_args' => $args,
+        ]
+    );
 
     return $args;
 }
@@ -991,12 +1200,17 @@ add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
  */
 function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
     if ( is_admin() ) {
+        gm2_search_log_event( 'debug', 'paginate_links output rewrite skipped for admin request.' );
         return $links;
     }
 
     $query_args = gm2_search_get_active_query_args();
 
     if ( empty( $query_args ) ) {
+        gm2_search_log_event(
+            'debug',
+            'paginate_links output rewrite skipped because no active filters were detected.'
+        );
         return $links;
     }
 
@@ -1132,12 +1346,28 @@ function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
     };
 
     if ( is_array( $links ) ) {
+        gm2_search_log_event(
+            'debug',
+            'Rewriting paginate_links() array output.',
+            [
+                'count'       => count( $links ),
+                'active_args' => $query_args,
+            ]
+        );
         foreach ( $links as $index => $markup ) {
             $links[ $index ] = $rewrite_html( $markup );
         }
 
         return $links;
     }
+
+    gm2_search_log_event(
+        'debug',
+        'Rewriting paginate_links() string output.',
+        [
+            'active_args' => $query_args,
+        ]
+    );
 
     return $rewrite_html( $links );
 }
@@ -1155,14 +1385,31 @@ add_filter( 'paginate_links', 'gm2_search_preserve_query_args_in_paginate_links_
  */
 function gm2_search_merge_woocommerce_pagination_args( $args ) {
     if ( is_admin() ) {
+        gm2_search_log_event( 'debug', 'WooCommerce pagination args filter skipped for admin request.' );
         return $args;
     }
 
     $query_args = gm2_search_get_active_query_args();
 
     if ( empty( $query_args ) ) {
+        gm2_search_log_event(
+            'debug',
+            'WooCommerce pagination args filter detected no active filters to merge.',
+            [
+                'args' => $args,
+            ]
+        );
         return $args;
     }
+
+    gm2_search_log_event(
+        'debug',
+        'Merging active filters into WooCommerce pagination arguments.',
+        [
+            'incoming_args' => $args,
+            'active_args'   => $query_args,
+        ]
+    );
 
     if ( empty( $args['add_args'] ) ) {
         $args['add_args'] = $query_args;
@@ -1178,12 +1425,33 @@ function gm2_search_merge_woocommerce_pagination_args( $args ) {
     }
 
     if ( ! empty( $args['base'] ) && is_string( $args['base'] ) ) {
-        $charset   = get_bloginfo( 'charset' );
+        $charset    = get_bloginfo( 'charset' );
         $query_keys = array_keys( $query_args );
-        $decoded  = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
+        $decoded    = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
+
+        // Preserve the pagination placeholders so add_query_arg() doesn't encode them.
+        $page_placeholder = 'gm2_page_placeholder_' . wp_rand();
+        $base_placeholder = 'gm2_base_placeholder_' . wp_rand();
+
+        $decoded = str_replace( '%#%', $page_placeholder, $decoded );
+        $decoded = str_replace( '%_%', $base_placeholder, $decoded );
+
         $stripped = remove_query_arg( $query_keys, $decoded );
-        $args['base'] = esc_url_raw( add_query_arg( $query_args, $stripped ) );
+        $updated  = add_query_arg( $query_args, $stripped );
+
+        $updated = str_replace( $page_placeholder, '%#%', $updated );
+        $updated = str_replace( $base_placeholder, '%_%', $updated );
+
+        $args['base'] = esc_url_raw( $updated );
     }
+
+    gm2_search_log_event(
+        'debug',
+        'WooCommerce pagination arguments after merge.',
+        [
+            'result_args' => $args,
+        ]
+    );
 
     return $args;
 }
