@@ -666,6 +666,44 @@ function gm2_search_get_results_template_render_state() {
 }
 
 /**
+ * Determine whether the current request is running in a non-frontend context.
+ *
+ * Elementor and WooCommerce can bootstrap WordPress from AJAX, REST, CLI or
+ * cron requests where template overrides should be avoided. When the helper
+ * returns true we short-circuit template loading to prevent fatals triggered by
+ * missing globals (e.g. the query object) or unavailable theme files.
+ *
+ * @return bool
+ */
+function gm2_search_is_backend_context() {
+    if ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) {
+        return true;
+    }
+
+    if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+        return true;
+    }
+
+    if ( function_exists( 'wp_doing_cron' ) && wp_doing_cron() ) {
+        return true;
+    }
+
+    if ( defined( 'DOING_CRON' ) && DOING_CRON ) {
+        return true;
+    }
+
+    if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+        return true;
+    }
+
+    if ( defined( 'WP_CLI' ) && WP_CLI ) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Inspect an Elementor template to determine if it contains a products loop widget.
  *
  * @param int $template_id Template post ID.
