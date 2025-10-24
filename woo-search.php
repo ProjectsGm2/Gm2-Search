@@ -603,6 +603,324 @@ function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
 }
 
 /**
+ * Retrieve the requested Elementor results template ID.
+ *
+ * @return int
+ */
+function gm2_search_get_request_results_template_id() {
+    $raw = gm2_search_get_request_var( 'gm2_results_template_id' );
+
+    if ( is_array( $raw ) ) {
+        $raw = reset( $raw );
+    }
+
+    if ( is_scalar( $raw ) ) {
+        $template_id = absint( $raw );
+    } else {
+        $template_id = 0;
+    }
+
+    return (int) apply_filters( 'gm2_search_request_results_template_id', $template_id, $raw );
+}
+
+/**
+ * Determine the active Elementor results template ID for the current request.
+ *
+ * @return int
+ */
+function gm2_search_get_active_results_template_id() {
+    static $cached = null;
+
+    if ( null === $cached ) {
+        $cached = gm2_search_get_request_results_template_id();
+    }
+
+    return $cached;
+}
+
+/**
+ * Determine whether the active Elementor template should render the full results layout or individual items.
+ *
+ * @return array{
+ *     mode: 'none'|'item'|'layout',
+ *     template_id: int,
+ * }
+ */
+function gm2_search_get_results_template_render_state() {
+    static $state = null;
+
+    if ( null !== $state ) {
+        return $state;
+    }
+
+    $state = [
+        'mode'        => 'none',
+        'template_id' => 0,
+    ];
+
+    $template_id = gm2_search_get_active_results_template_id();
+    $state['template_id'] = $template_id;
+
+    if ( ! $template_id || ! class_exists( '\\Elementor\\Plugin' ) ) {
+        return $state;
+    }
+
+    $contains_loop = gm2_search_elementor_template_contains_results_loop( $template_id );
+
+    if ( $contains_loop ) {
+        $state['mode'] = 'layout';
+    } else {
+        $state['mode'] = 'item';
+    }
+
+    /**
+     * Filter the resolved render state for the active results template.
+     *
+     * @param array $state {
+     *     mode: 'none'|'item'|'layout',
+     *     template_id: int,
+     * }
+     */
+    $state = apply_filters( 'gm2_search_results_template_render_state', $state );
+
+    return $state;
+}
+
+/**
+ * Inspect an Elementor template to determine if it contains a products loop widget.
+ *
+ * @param int $template_id Template post ID.
+ * @return bool
+ */
+function gm2_search_elementor_template_contains_results_loop( $template_id ) {
+    $has_loop = false;
+
+    if ( ! $template_id || ! class_exists( '\\Elementor\\Plugin' ) ) {
+        return false;
+    }
+
+    $plugin = \Elementor\Plugin::instance();
+
+    if ( isset( $plugin->documents ) && method_exists( $plugin->documents, 'get' ) ) {
+        $document = $plugin->documents->get( $template_id );
+
+        if ( $document && method_exists( $document, 'get_elements_data' ) ) {
+            $elements = $document->get_elements_data();
+
+            if ( gm2_search_elementor_elements_contain_widget(
+                $elements,
+                [
+                    'woocommerce-products',
+                    'archive-products',
+                    'woocommerce-products-archive',
+                    'woocommerce-archive-products',
+                    'woocommerce-product-archive',
+                ]
+            ) ) {
+                $has_loop = true;
+            }
+        }
+    }
+
+    if ( ! $has_loop && isset( $plugin->frontend ) && method_exists( $plugin->frontend, 'get_builder_content_for_display' ) ) {
+        $content = $plugin->frontend->get_builder_content_for_display( $template_id, true );
+        if ( gm2_search_elementor_template_markup_has_results_loop( $content ) ) {
+            $has_loop = true;
+        }
+    }
+
+    /**
+     * Allow developers to override loop detection for Elementor templates.
+     *
+     * @param bool $has_loop Whether the template contains a loop widget.
+     * @param int  $template_id Template post ID.
+     */
+    return (bool) apply_filters( 'gm2_search_elementor_template_contains_results_loop', $has_loop, $template_id );
+}
+
+/**
+ * Recursively inspect Elementor element data for specific widget types.
+ *
+ * @param array<int, array<string, mixed>> $elements Elementor element data.
+ * @param array<int, string>               $widget_types Widget slugs to detect.
+ * @return bool
+ */
+function gm2_search_normalize_elementor_widget_type( $widget_type ) {
+    if ( ! is_string( $widget_type ) || '' === $widget_type ) {
+        return '';
+    }
+
+    $normalized = strtolower( $widget_type );
+
+    // Elementor appends skin identifiers after a dot, e.g. `woocommerce-products.default`.
+    $parts = preg_split( '/[.:]/', $normalized );
+    $normalized = ( $parts && isset( $parts[0] ) ) ? $parts[0] : $normalized;
+
+    $normalized = str_replace( '\\', '/', $normalized );
+    $normalized = trim( $normalized );
+
+    return sanitize_key( $normalized );
+}
+
+/**
+ * Determine whether the provided Elementor loop grid widget is configured to query products.
+ *
+ * @param array<string, mixed> $element Elementor element definition.
+ * @return bool
+ */
+function gm2_search_elementor_loop_grid_targets_products( $element ) {
+    if ( empty( $element['settings'] ) || ! is_array( $element['settings'] ) ) {
+        return false;
+    }
+
+    $settings = $element['settings'];
+    $candidates = [];
+
+    foreach ( [ 'query_post_type', 'posts_post_type' ] as $key ) {
+        if ( isset( $settings[ $key ] ) ) {
+            $candidates[] = $settings[ $key ];
+        }
+    }
+
+    if ( isset( $settings['query'] ) && is_array( $settings['query'] ) ) {
+        $query_settings = $settings['query'];
+
+        foreach ( [ 'post_type', 'source', 'query_type' ] as $key ) {
+            if ( isset( $query_settings[ $key ] ) ) {
+                $candidates[] = $query_settings[ $key ];
+            }
+        }
+    }
+
+    foreach ( $candidates as $value ) {
+        if ( gm2_search_value_includes_product_post_type( $value ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Check if a value or list of values references WooCommerce products.
+ *
+ * @param mixed $value Value to inspect.
+ * @return bool
+ */
+function gm2_search_value_includes_product_post_type( $value ) {
+    if ( is_string( $value ) ) {
+        $normalized = sanitize_key( $value );
+
+        return in_array( $normalized, [ 'product', 'products', 'product_variation', 'woocommerce' ], true );
+    }
+
+    if ( is_array( $value ) ) {
+        foreach ( $value as $item ) {
+            if ( gm2_search_value_includes_product_post_type( $item ) ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function gm2_search_elementor_elements_contain_widget( $elements, $widget_types ) {
+    if ( empty( $elements ) || ! is_array( $elements ) ) {
+        return false;
+    }
+
+    foreach ( $elements as $element ) {
+        if ( ! is_array( $element ) ) {
+            continue;
+        }
+
+        $el_type = isset( $element['elType'] ) ? $element['elType'] : '';
+
+        if ( 'widget' === $el_type ) {
+            $widget_type = isset( $element['widgetType'] ) ? $element['widgetType'] : '';
+            $normalized  = gm2_search_normalize_elementor_widget_type( $widget_type );
+
+            if ( $normalized && in_array( $normalized, $widget_types, true ) ) {
+                return true;
+            }
+
+            if ( 'loop-grid' === $normalized && gm2_search_elementor_loop_grid_targets_products( $element ) ) {
+                return true;
+            }
+        }
+
+        if ( ! empty( $element['elements'] ) && is_array( $element['elements'] ) ) {
+            if ( gm2_search_elementor_elements_contain_widget( $element['elements'], $widget_types ) ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Detect loop widgets by scanning rendered Elementor markup.
+ *
+ * @param string $content Rendered Elementor content.
+ * @return bool
+ */
+function gm2_search_elementor_template_markup_has_results_loop( $content ) {
+    if ( ! is_string( $content ) || '' === trim( $content ) ) {
+        return false;
+    }
+
+    $markers = [
+        'elementor-widget-woocommerce-products',
+        'elementor-widget-archive-products',
+        'elementor-widget-woocommerce-archive-products',
+        'elementor-widget-woocommerce-products-archive',
+        'data-widget_type="woocommerce-products',
+        'data-widget_type="archive-products',
+        'data-widget_type="woocommerce-archive-products',
+        'data-widget_type="woocommerce-products-archive',
+    ];
+
+    foreach ( $markers as $marker ) {
+        if ( false !== stripos( $content, $marker ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Render the active Elementor results template when it replaces the entire results layout.
+ *
+ * @return string
+ */
+function gm2_search_render_elementor_results_layout() {
+    $state = gm2_search_get_results_template_render_state();
+
+    if ( 'layout' !== $state['mode'] || empty( $state['template_id'] ) || ! class_exists( '\\Elementor\\Plugin' ) ) {
+        return '';
+    }
+
+    $plugin = \Elementor\Plugin::instance();
+
+    if ( ! isset( $plugin->frontend ) || ! method_exists( $plugin->frontend, 'get_builder_content_for_display' ) ) {
+        return '';
+    }
+
+    $content = $plugin->frontend->get_builder_content_for_display( $state['template_id'], true );
+
+    /**
+     * Filter the rendered Elementor layout content before it is output.
+     *
+     * @param string $content Rendered layout HTML.
+     * @param int    $template_id Template post ID.
+     */
+    return apply_filters( 'gm2_search_rendered_results_layout', $content, $state['template_id'] );
+}
+
+/**
  * Convert a preset date range slug into a WP_Query-compatible date query.
  *
  * @param string $range Range slug.
@@ -879,6 +1197,7 @@ function gm2_search_request_has_filters() {
         'gm2_orderby',
         'gm2_order',
         'gm2_query_id',
+        'gm2_results_template_id',
     ];
 
     foreach ( $filter_keys as $key ) {
@@ -957,6 +1276,7 @@ function gm2_search_register_query_vars( $public_query_vars ) {
         'gm2_orderby',
         'gm2_order',
         'gm2_query_id',
+        'gm2_results_template_id',
     ];
 
     foreach ( $gm2_vars as $var ) {
@@ -1055,6 +1375,12 @@ function gm2_search_get_active_query_args() {
         }
     }
 
+    $results_template_id = gm2_search_get_request_results_template_id();
+
+    if ( $results_template_id ) {
+        $args['gm2_results_template_id'] = $results_template_id;
+    }
+
     $post_types = gm2_search_get_request_post_types();
 
     if ( ! empty( $post_types ) ) {
@@ -1075,6 +1401,7 @@ function gm2_search_get_active_query_args() {
             'gm2_orderby',
             'gm2_order',
             'gm2_query_id',
+            'gm2_results_template_id',
             'post_type',
         ]
     );
@@ -1597,6 +1924,12 @@ function gm2_search_render_product_card( $product = null ) {
         return;
     }
 
+    $render_state = gm2_search_get_results_template_render_state();
+
+    if ( isset( $render_state['mode'] ) && 'layout' === $render_state['mode'] ) {
+        return;
+    }
+
     $had_global_product = array_key_exists( 'product', $GLOBALS );
     $previous_product   = $had_global_product ? $GLOBALS['product'] : null;
 
@@ -1610,12 +1943,36 @@ function gm2_search_render_product_card( $product = null ) {
 
     $GLOBALS['product'] = $product;
 
-    wc_get_template(
-        'parts/gm2-search-product-card.php',
-        [],
-        '',
-        plugin_dir_path( __FILE__ ) . 'templates/'
-    );
+    $rendered = false;
+
+    $results_template_id = isset( $render_state['template_id'] ) ? (int) $render_state['template_id'] : gm2_search_get_active_results_template_id();
+    $results_template_id = (int) apply_filters( 'gm2_search_results_template_id', $results_template_id, $product );
+
+    if ( $results_template_id && class_exists( '\\Elementor\\Plugin' ) ) {
+        $frontend = \Elementor\Plugin::instance()->frontend;
+
+        if ( $frontend && method_exists( $frontend, 'get_builder_content_for_display' ) ) {
+            $content = $frontend->get_builder_content_for_display( $results_template_id, true );
+
+            if ( ! empty( $content ) ) {
+                ?>
+                <li <?php wc_product_class( 'gm2-search-loop__product-card gm2-search-loop__product-card--elementor', $product ); ?>>
+                    <?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </li>
+                <?php
+                $rendered = true;
+            }
+        }
+    }
+
+    if ( ! $rendered ) {
+        wc_get_template(
+            'parts/gm2-search-product-card.php',
+            [],
+            '',
+            plugin_dir_path( __FILE__ ) . 'templates/'
+        );
+    }
 
     if ( $had_global_product ) {
         $GLOBALS['product'] = $previous_product;
@@ -1649,9 +2006,47 @@ function gm2_get_filter_products() {
 
     $query = new WP_Query( $query_args );
 
+    $previous_wp_query = isset( $GLOBALS['wp_query'] ) ? $GLOBALS['wp_query'] : null;
+    $GLOBALS['wp_query'] = $query;
+
+    $render_state        = gm2_search_get_results_template_render_state();
+    $is_layout_template  = ( isset( $render_state['mode'], $render_state['template_id'] ) && 'layout' === $render_state['mode'] && $render_state['template_id'] );
+    $layout_content      = '';
+
+    if ( $is_layout_template ) {
+        $layout_content = gm2_search_render_elementor_results_layout();
+
+        if ( '' === trim( (string) $layout_content ) ) {
+            $is_layout_template = false;
+        }
+    }
+
     ob_start();
 
-    if ( $query->have_posts() ) {
+    if ( $is_layout_template ) {
+        if ( function_exists( 'wc_setup_loop' ) ) {
+            wc_setup_loop(
+                [
+                    'total'        => $query->found_posts,
+                    'total_pages'  => $query->max_num_pages,
+                    'per_page'     => (int) $query->get( 'posts_per_page' ),
+                    'current'      => $paged,
+                    'is_search'    => true,
+                    'is_paginated' => $query->max_num_pages > 1,
+                ]
+            );
+        }
+
+        do_action( 'woocommerce_before_shop_loop' );
+
+        echo $layout_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
+        do_action( 'woocommerce_after_shop_loop' );
+
+        if ( function_exists( 'wc_reset_loop' ) ) {
+            wc_reset_loop();
+        }
+    } elseif ( $query->have_posts() ) {
         if ( function_exists( 'wc_setup_loop' ) ) {
             wc_setup_loop(
                 [
@@ -1687,6 +2082,12 @@ function gm2_get_filter_products() {
 
     $content = ob_get_clean();
 
+    if ( $previous_wp_query instanceof WP_Query ) {
+        $GLOBALS['wp_query'] = $previous_wp_query;
+    } else {
+        unset( $GLOBALS['wp_query'] );
+    }
+
     wp_reset_postdata();
 
     $search_term = gm2_search_get_request_search_term();
@@ -1711,6 +2112,10 @@ function gm2_get_filter_products() {
     }
     if ( '' !== $taxonomy_value ) {
         $add_args['gm2_category_taxonomy'] = $taxonomy_value;
+    }
+    $results_template_id = gm2_search_get_request_results_template_id();
+    if ( $results_template_id ) {
+        $add_args['gm2_results_template_id'] = $results_template_id;
     }
 
     $pagination = paginate_links(
