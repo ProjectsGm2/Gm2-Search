@@ -1488,45 +1488,19 @@ function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
         return esc_url( $updated );
     };
 
-    $rewrite_html = static function( $markup ) use ( $rewrite_url, $charset ) {
-        if ( ! is_string( $markup ) || '' === $markup ) {
+    $rewrite_html = static function( $markup ) use ( $rewrite_url ) {
+        if ( ! is_string( $markup ) || '' === $markup || false === strpos( $markup, 'href=' ) ) {
             return $markup;
         }
-
-        if ( false === strpos( $markup, 'href' ) && false === strpos( $markup, 'data-' ) ) {
-            return $markup;
-        }
-
-        $attribute_pattern = '/\b(href|data-[a-z0-9_-]*(?:href|url|link))=([\'\"])([^\'\"]*)\2/i';
 
         return preg_replace_callback(
-            $attribute_pattern,
-            static function( $matches ) use ( $rewrite_url, $charset ) {
-                $attribute = $matches[1];
-                $quote     = $matches[2];
-                $value     = $matches[3];
+            "/href=(['\"])([^'\"]*)\\1/",
+            static function( $matches ) use ( $rewrite_url ) {
+                $quote   = $matches[1];
+                $url     = $matches[2];
+                $updated = $rewrite_url( $url );
 
-                if ( '' === $value ) {
-                    return $matches[0];
-                }
-
-                $decoded_value = html_entity_decode( $value, ENT_QUOTES, $charset );
-
-                if (
-                    false === strpos( $decoded_value, ':' )
-                    && false === strpos( $decoded_value, '/' )
-                    && false === strpos( $decoded_value, '?' )
-                ) {
-                    return $matches[0];
-                }
-
-                $updated = $rewrite_url( $value );
-
-                if ( ! is_string( $updated ) || '' === $updated ) {
-                    return $matches[0];
-                }
-
-                return $attribute . '=' . $quote . $updated . $quote;
+                return 'href=' . $quote . $updated . $quote;
             },
             $markup
         );
