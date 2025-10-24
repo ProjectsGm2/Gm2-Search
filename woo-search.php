@@ -191,12 +191,24 @@ add_filter('posts_groupby', 'woo_search_opt_groupby', 20, 2);
  * @param string $key Query parameter key.
  * @return array<int>
  */
-function gm2_search_get_request_ids( $key ) {
-    if ( ! isset( $_GET[ $key ] ) ) {
-        return [];
+function gm2_search_get_request_var( $key ) {
+    if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        return wp_unslash( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
     }
 
-    $raw = wp_unslash( $_GET[ $key ] );
+    if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        return wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    }
+
+    return null;
+}
+
+function gm2_search_get_request_ids( $key ) {
+    $raw = gm2_search_get_request_var( $key );
+
+    if ( null === $raw ) {
+        return [];
+    }
 
     if ( is_array( $raw ) ) {
         $parts = $raw;
@@ -216,11 +228,9 @@ function gm2_search_get_request_ids( $key ) {
  * @return array<int, string>
  */
 function gm2_search_get_request_post_types() {
-    $post_types = [];
+    $post_types = gm2_search_get_request_var( 'post_type' );
 
-    if ( isset( $_GET['post_type'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $post_types = wp_unslash( $_GET['post_type'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    } elseif ( get_query_var( 'post_type' ) ) {
+    if ( null === $post_types && get_query_var( 'post_type' ) ) {
         $post_types = get_query_var( 'post_type' );
     }
 
@@ -242,11 +252,11 @@ function gm2_search_get_request_post_types() {
  * @return array<string>
  */
 function gm2_search_get_request_slugs( $key ) {
-    if ( ! isset( $_GET[ $key ] ) ) {
+    $raw = gm2_search_get_request_var( $key );
+
+    if ( null === $raw ) {
         return [];
     }
-
-    $raw = wp_unslash( $_GET[ $key ] );
 
     if ( is_array( $raw ) ) {
         $parts = $raw;
@@ -296,7 +306,13 @@ function gm2_search_get_term_ids_from_slugs( $slugs, $taxonomy ) {
  * @return string
  */
 function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
-    $raw_taxonomy = isset( $_GET[ $key ] ) ? sanitize_key( wp_unslash( $_GET[ $key ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $raw_taxonomy = gm2_search_get_request_var( $key );
+
+    if ( is_string( $raw_taxonomy ) ) {
+        $raw_taxonomy = sanitize_key( $raw_taxonomy );
+    } else {
+        $raw_taxonomy = '';
+    }
 
     if ( $raw_taxonomy && taxonomy_exists( $raw_taxonomy ) ) {
         return $raw_taxonomy;
@@ -348,28 +364,25 @@ function gm2_search_build_date_query( $range ) {
     ];
 }
 
-/**
- * Apply query configuration provided by the Elementor widget.
- */
-function gm2_search_apply_query_parameters( $query ) {
-    if ( is_admin() || ! $query->is_main_query() || ! $query->is_search() ) {
-        return;
+function gm2_search_populate_query_from_request( $query ) {
+    $is_main_query = method_exists( $query, 'is_main_query' ) ? $query->is_main_query() : false;
+
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
+        $post_types = [ 'product' ];
     }
 
-    $elementor_page = 0;
-
-    if ( isset( $_GET['e-search-page'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $elementor_page = absint( wp_unslash( $_GET['e-search-page'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    }
-
-    if ( $elementor_page > 0 ) {
-        $current_paged = absint( $query->get( 'paged' ) );
-
-        if ( $elementor_page !== $current_paged ) {
-            $query->set( 'paged', $elementor_page );
-            $query->set( 'page', $elementor_page );
-            set_query_var( 'paged', $elementor_page );
-            set_query_var( 'page', $elementor_page );
+    if ( 1 === count( $post_types ) ) {
+        $single_post_type = reset( $post_types );
+        $query->set( 'post_type', $single_post_type );
+        if ( $is_main_query ) {
+            set_query_var( 'post_type', $single_post_type );
+        }
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        if ( $is_main_query ) {
+            set_query_var( 'post_type', $post_types );
         }
     }
 
@@ -427,14 +440,16 @@ function gm2_search_apply_query_parameters( $query ) {
         $query->set( 'tax_query', $tax_query );
     }
 
-    $filter_category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
-    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_taxonomy ) ) {
-        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_taxonomy );
+    $category_filter_taxonomy = gm2_search_get_request_taxonomy( 'gm2_category_taxonomy', 'category' );
+    $filter_category_slugs    = gm2_search_get_request_slugs( 'gm2_category_filter' );
+
+    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_filter_taxonomy ) ) {
+        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_filter_taxonomy );
 
         if ( ! empty( $filter_category_ids ) ) {
             $tax_query   = (array) $query->get( 'tax_query' );
             $tax_query[] = [
-                'taxonomy' => $category_taxonomy,
+                'taxonomy' => $category_filter_taxonomy,
                 'field'    => 'term_id',
                 'terms'    => $filter_category_ids,
                 'operator' => 'IN',
@@ -444,16 +459,22 @@ function gm2_search_apply_query_parameters( $query ) {
         }
     }
 
-    $date_range = isset( $_GET['gm2_date_range'] ) ? sanitize_text_field( wp_unslash( $_GET['gm2_date_range'] ) ) : '';
-    if ( ! empty( $date_range ) ) {
+    $date_range_raw = gm2_search_get_request_var( 'gm2_date_range' );
+    $date_range      = is_string( $date_range_raw ) ? sanitize_key( $date_range_raw ) : '';
+
+    if ( $date_range ) {
         $date_query = gm2_search_build_date_query( $date_range );
+
         if ( $date_query ) {
             $query->set( 'date_query', [ $date_query ] );
         }
     }
 
-    $order_by = isset( $_GET['gm2_orderby'] ) ? sanitize_key( wp_unslash( $_GET['gm2_orderby'] ) ) : '';
-    $order = isset( $_GET['gm2_order'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_GET['gm2_order'] ) ) ) : '';
+    $order_by_raw = gm2_search_get_request_var( 'gm2_orderby' );
+    $order_raw    = gm2_search_get_request_var( 'gm2_order' );
+
+    $order_by = is_string( $order_by_raw ) ? sanitize_key( $order_by_raw ) : '';
+    $order    = is_string( $order_raw ) ? strtoupper( sanitize_text_field( $order_raw ) ) : '';
 
     if ( $order_by ) {
         $query->set( 'gm2_orderby', $order_by );
@@ -473,7 +494,9 @@ function gm2_search_apply_query_parameters( $query ) {
         $query->set( 'order', $order );
     }
 
-    $query_id = isset( $_GET['gm2_query_id'] ) ? sanitize_key( wp_unslash( $_GET['gm2_query_id'] ) ) : '';
+    $query_id_raw = gm2_search_get_request_var( 'gm2_query_id' );
+    $query_id     = is_string( $query_id_raw ) ? sanitize_key( $query_id_raw ) : '';
+
     if ( ! empty( $query_id ) ) {
         $query->set( 'gm2_query_id', $query_id );
         /**
@@ -482,7 +505,131 @@ function gm2_search_apply_query_parameters( $query ) {
         do_action( 'gm2_search/query/' . $query_id, $query );
     }
 }
+
+function gm2_search_get_request_search_term() {
+    $search_query = get_query_var( 's' );
+
+    if ( ! is_string( $search_query ) || '' === $search_query ) {
+        $search_query = get_search_query( false );
+    }
+
+    if ( ! is_string( $search_query ) || '' === $search_query ) {
+        $request_search = gm2_search_get_request_var( 's' );
+
+        if ( is_string( $request_search ) && '' !== $request_search ) {
+            $search_query = sanitize_text_field( $request_search );
+        }
+    }
+
+    return is_string( $search_query ) ? $search_query : '';
+}
+
+function gm2_search_apply_query_parameters( $query ) {
+    if ( is_admin() || ! $query->is_main_query() ) {
+        return;
+    }
+
+    if ( ! $query->is_search() ) {
+        $search_term = gm2_search_get_request_search_term();
+
+        if ( '' === $search_term ) {
+            return;
+        }
+
+        $query->set( 's', $search_term );
+    }
+
+    $elementor_page_raw = gm2_search_get_request_var( 'e-search-page' );
+    $elementor_page     = is_numeric( $elementor_page_raw ) ? absint( $elementor_page_raw ) : 0;
+
+    if ( $elementor_page > 0 ) {
+        $current_paged = absint( $query->get( 'paged' ) );
+
+        if ( $elementor_page !== $current_paged ) {
+            $query->set( 'paged', $elementor_page );
+            $query->set( 'page', $elementor_page );
+            set_query_var( 'paged', $elementor_page );
+            set_query_var( 'page', $elementor_page );
+        }
+    }
+
+    gm2_search_populate_query_from_request( $query );
+}
 add_action( 'pre_get_posts', 'gm2_search_apply_query_parameters' );
+
+function gm2_search_request_has_filters() {
+    if ( '' !== gm2_search_get_request_search_term() ) {
+        return true;
+    }
+
+    $filter_keys = [
+        'gm2_include_posts',
+        'gm2_exclude_posts',
+        'gm2_include_categories',
+        'gm2_exclude_categories',
+        'gm2_category_filter',
+        'gm2_date_range',
+        'gm2_orderby',
+        'gm2_order',
+        'gm2_query_id',
+    ];
+
+    foreach ( $filter_keys as $key ) {
+        $value = gm2_search_get_request_var( $key );
+
+        if ( is_array( $value ) ) {
+            if ( ! empty( $value ) ) {
+                return true;
+            }
+            continue;
+        }
+
+        if ( is_string( $value ) && '' !== trim( $value ) ) {
+            return true;
+        }
+    }
+
+    $raw_post_type = gm2_search_get_request_var( 'post_type' );
+
+    if ( null === $raw_post_type ) {
+        return false;
+    }
+
+    $post_types = array_map( 'sanitize_key', (array) $raw_post_type );
+
+    return ! empty( array_filter( $post_types ) );
+}
+
+function gm2_search_apply_secondary_product_queries( $query ) {
+    if ( is_admin() || $query->is_main_query() ) {
+        return;
+    }
+
+    if ( ! gm2_search_request_has_filters() ) {
+        return;
+    }
+
+    $post_type = $query->get( 'post_type' );
+
+    if ( empty( $post_type ) ) {
+        $post_type = gm2_search_get_request_post_types();
+    }
+
+    $post_types = (array) $post_type;
+
+    if ( empty( $post_types ) ) {
+        return;
+    }
+
+    $post_types = array_map( 'sanitize_key', $post_types );
+
+    if ( ! in_array( 'product', $post_types, true ) ) {
+        return;
+    }
+
+    gm2_search_populate_query_from_request( $query );
+}
+add_action( 'pre_get_posts', 'gm2_search_apply_secondary_product_queries', 11 );
 
 /**
  * Ensure custom query variables are recognised by WordPress so they persist
@@ -538,19 +685,9 @@ function gm2_search_get_active_query_args() {
         }
     }
 
-    $search_query = get_query_var( 's' );
+    $search_query = gm2_search_get_request_search_term();
 
-    if ( ! is_string( $search_query ) || '' === $search_query ) {
-        $search_query = get_search_query( false );
-    }
-
-    if ( ! is_string( $search_query ) || '' === $search_query ) {
-        if ( isset( $_GET['s'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $search_query = sanitize_text_field( wp_unslash( $_GET['s'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        }
-    }
-
-    if ( is_string( $search_query ) && '' !== $search_query ) {
+    if ( '' !== $search_query ) {
         $args['s'] = $search_query;
     }
 
@@ -559,42 +696,52 @@ function gm2_search_get_active_query_args() {
         $args['gm2_category_filter'] = implode( ',', $category_slugs );
     }
 
-    if ( isset( $_GET['gm2_category_taxonomy'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $taxonomy = sanitize_key( wp_unslash( $_GET['gm2_category_taxonomy'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $category_taxonomy_raw = gm2_search_get_request_var( 'gm2_category_taxonomy' );
+
+    if ( is_string( $category_taxonomy_raw ) ) {
+        $taxonomy = sanitize_key( $category_taxonomy_raw );
 
         if ( $taxonomy && taxonomy_exists( $taxonomy ) ) {
             $args['gm2_category_taxonomy'] = $taxonomy;
         }
     }
 
-    if ( isset( $_GET['gm2_date_range'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $date_range_raw = gm2_search_get_request_var( 'gm2_date_range' );
+
+    if ( is_string( $date_range_raw ) ) {
         $allowed_ranges = [ 'past_day', 'past_week', 'past_month', 'past_year' ];
-        $date_range     = sanitize_text_field( wp_unslash( $_GET['gm2_date_range'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $date_range     = sanitize_key( $date_range_raw );
 
         if ( in_array( $date_range, $allowed_ranges, true ) ) {
             $args['gm2_date_range'] = $date_range;
         }
     }
 
-    if ( isset( $_GET['gm2_orderby'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $order_by_raw = gm2_search_get_request_var( 'gm2_orderby' );
+
+    if ( is_string( $order_by_raw ) ) {
         $allowed_orderby = [ 'relevance', 'date', 'title', 'price', 'rand' ];
-        $order_by        = sanitize_key( wp_unslash( $_GET['gm2_orderby'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $order_by        = sanitize_key( $order_by_raw );
 
         if ( in_array( $order_by, $allowed_orderby, true ) ) {
             $args['gm2_orderby'] = $order_by;
         }
     }
 
-    if ( isset( $_GET['gm2_order'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $order = strtoupper( sanitize_text_field( wp_unslash( $_GET['gm2_order'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $order_raw = gm2_search_get_request_var( 'gm2_order' );
+
+    if ( is_string( $order_raw ) ) {
+        $order = strtoupper( sanitize_text_field( $order_raw ) );
 
         if ( in_array( $order, [ 'ASC', 'DESC' ], true ) ) {
             $args['gm2_order'] = $order;
         }
     }
 
-    if ( isset( $_GET['gm2_query_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $query_id = sanitize_key( wp_unslash( $_GET['gm2_query_id'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $query_id_raw = gm2_search_get_request_var( 'gm2_query_id' );
+
+    if ( is_string( $query_id_raw ) ) {
+        $query_id = sanitize_key( $query_id_raw );
 
         if ( ! empty( $query_id ) ) {
             $args['gm2_query_id'] = $query_id;
