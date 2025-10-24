@@ -603,6 +603,42 @@ function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
 }
 
 /**
+ * Retrieve the requested Elementor results template ID.
+ *
+ * @return int
+ */
+function gm2_search_get_request_results_template_id() {
+    $raw = gm2_search_get_request_var( 'gm2_results_template_id' );
+
+    if ( is_array( $raw ) ) {
+        $raw = reset( $raw );
+    }
+
+    if ( is_scalar( $raw ) ) {
+        $template_id = absint( $raw );
+    } else {
+        $template_id = 0;
+    }
+
+    return (int) apply_filters( 'gm2_search_request_results_template_id', $template_id, $raw );
+}
+
+/**
+ * Determine the active Elementor results template ID for the current request.
+ *
+ * @return int
+ */
+function gm2_search_get_active_results_template_id() {
+    static $cached = null;
+
+    if ( null === $cached ) {
+        $cached = gm2_search_get_request_results_template_id();
+    }
+
+    return $cached;
+}
+
+/**
  * Convert a preset date range slug into a WP_Query-compatible date query.
  *
  * @param string $range Range slug.
@@ -879,6 +915,7 @@ function gm2_search_request_has_filters() {
         'gm2_orderby',
         'gm2_order',
         'gm2_query_id',
+        'gm2_results_template_id',
     ];
 
     foreach ( $filter_keys as $key ) {
@@ -957,6 +994,7 @@ function gm2_search_register_query_vars( $public_query_vars ) {
         'gm2_orderby',
         'gm2_order',
         'gm2_query_id',
+        'gm2_results_template_id',
     ];
 
     foreach ( $gm2_vars as $var ) {
@@ -1055,6 +1093,12 @@ function gm2_search_get_active_query_args() {
         }
     }
 
+    $results_template_id = gm2_search_get_request_results_template_id();
+
+    if ( $results_template_id ) {
+        $args['gm2_results_template_id'] = $results_template_id;
+    }
+
     $post_types = gm2_search_get_request_post_types();
 
     if ( ! empty( $post_types ) ) {
@@ -1075,6 +1119,7 @@ function gm2_search_get_active_query_args() {
             'gm2_orderby',
             'gm2_order',
             'gm2_query_id',
+            'gm2_results_template_id',
             'post_type',
         ]
     );
@@ -1610,12 +1655,36 @@ function gm2_search_render_product_card( $product = null ) {
 
     $GLOBALS['product'] = $product;
 
-    wc_get_template(
-        'parts/gm2-search-product-card.php',
-        [],
-        '',
-        plugin_dir_path( __FILE__ ) . 'templates/'
-    );
+    $rendered = false;
+
+    $results_template_id = gm2_search_get_active_results_template_id();
+    $results_template_id = (int) apply_filters( 'gm2_search_results_template_id', $results_template_id, $product );
+
+    if ( $results_template_id && class_exists( '\\Elementor\\Plugin' ) ) {
+        $frontend = \Elementor\Plugin::instance()->frontend;
+
+        if ( $frontend && method_exists( $frontend, 'get_builder_content_for_display' ) ) {
+            $content = $frontend->get_builder_content_for_display( $results_template_id, true );
+
+            if ( ! empty( $content ) ) {
+                ?>
+                <li <?php wc_product_class( 'gm2-search-loop__product-card gm2-search-loop__product-card--elementor', $product ); ?>>
+                    <?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </li>
+                <?php
+                $rendered = true;
+            }
+        }
+    }
+
+    if ( ! $rendered ) {
+        wc_get_template(
+            'parts/gm2-search-product-card.php',
+            [],
+            '',
+            plugin_dir_path( __FILE__ ) . 'templates/'
+        );
+    }
 
     if ( $had_global_product ) {
         $GLOBALS['product'] = $previous_product;
@@ -1711,6 +1780,10 @@ function gm2_get_filter_products() {
     }
     if ( '' !== $taxonomy_value ) {
         $add_args['gm2_category_taxonomy'] = $taxonomy_value;
+    }
+    $results_template_id = gm2_search_get_request_results_template_id();
+    if ( $results_template_id ) {
+        $add_args['gm2_results_template_id'] = $results_template_id;
     }
 
     $pagination = paginate_links(
