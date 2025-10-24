@@ -24,6 +24,8 @@ if ( $is_layout_template && function_exists( 'gm2_search_render_elementor_result
 }
 
 if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop() ) || have_posts() ) {
+    $has_before_shop_loop = has_action( 'woocommerce_before_shop_loop' );
+
     if ( function_exists( 'wc_setup_loop' ) && isset( $wp_query ) && $wp_query instanceof WP_Query ) {
         wc_setup_loop(
             [
@@ -39,11 +41,24 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
 
     do_action( 'woocommerce_before_shop_loop' );
 
+    if ( ! $has_before_shop_loop ) {
+        if ( function_exists( 'woocommerce_result_count' ) ) {
+            woocommerce_result_count();
+        }
+
+        if ( function_exists( 'woocommerce_catalog_ordering' ) ) {
+            woocommerce_catalog_ordering();
+        }
+    }
+
+    $gm2_loop_wrapper_started = false;
+
     if ( ! $is_layout_template ) {
         if ( function_exists( 'woocommerce_product_loop_start' ) ) {
             woocommerce_product_loop_start();
         } else {
-            echo '<ul class="products columns-4">';
+            echo '<ul class="products">';
+            $gm2_loop_wrapper_started = true;
         }
     }
 
@@ -52,14 +67,14 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
     } else {
         while ( have_posts() ) {
             the_post();
-            wc_get_template_part( 'content', 'product' );
+            gm2_search_render_product_card();
         }
     }
 
     if ( ! $is_layout_template ) {
         if ( function_exists( 'woocommerce_product_loop_end' ) ) {
             woocommerce_product_loop_end();
-        } else {
+        } elseif ( $gm2_loop_wrapper_started ) {
             echo '</ul>';
         }
     }
@@ -70,7 +85,11 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
         wc_reset_loop();
     }
 } else {
-    wc_no_products_found();
+    if ( has_action( 'woocommerce_no_products_found' ) ) {
+        do_action( 'woocommerce_no_products_found' );
+    } elseif ( function_exists( 'wc_no_products_found' ) ) {
+        wc_no_products_found();
+    }
 }
 
 do_action( 'woocommerce_after_main_content' );

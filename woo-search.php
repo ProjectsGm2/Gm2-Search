@@ -1993,28 +1993,11 @@ function gm2_get_filter_products() {
 
     $query_args = gm2_search_build_query_args_from_request();
 
-    $request_search_term = '';
-    if ( isset( $_GET['s'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $request_search_term = sanitize_text_field( wp_unslash( $_GET['s'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    }
-
-    if ( '' !== $request_search_term ) {
-        $query_args['s'] = $request_search_term;
-    }
-
     if ( empty( $query_args['post_type'] ) && post_type_exists( 'product' ) ) {
         $query_args['post_type'] = 'product';
     }
 
-    $paged = 1;
-    if ( isset( $_GET['paged'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $paged = max( 1, intval( wp_unslash( $_GET['paged'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    } elseif ( isset( $_GET['page'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $paged = max( 1, intval( wp_unslash( $_GET['page'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    } elseif ( isset( $query_args['paged'] ) ) {
-        $paged = max( 1, absint( $query_args['paged'] ) );
-    }
-
+    $paged = isset( $query_args['paged'] ) ? max( 1, absint( $query_args['paged'] ) ) : 1;
     $query_args['paged'] = $paged;
 
     if ( empty( $query_args['posts_per_page'] ) ) {
@@ -2077,32 +2060,24 @@ function gm2_get_filter_products() {
             );
         }
 
-        do_action( 'woocommerce_before_shop_loop' );
-
         if ( function_exists( 'woocommerce_product_loop_start' ) ) {
             woocommerce_product_loop_start();
-        } else {
-            echo '<ul class="products columns-4">';
         }
 
         while ( $query->have_posts() ) {
             $query->the_post();
-            wc_get_template_part( 'content', 'product' );
+            gm2_search_render_product_card();
         }
 
         if ( function_exists( 'woocommerce_product_loop_end' ) ) {
             woocommerce_product_loop_end();
-        } else {
-            echo '</ul>';
         }
-
-        do_action( 'woocommerce_after_shop_loop' );
 
         if ( function_exists( 'wc_reset_loop' ) ) {
             wc_reset_loop();
         }
     } else {
-        wc_no_products_found();
+        wc_get_template( 'loop/no-products-found.php' );
     }
 
     $content = ob_get_clean();
@@ -2129,8 +2104,6 @@ function gm2_get_filter_products() {
     }
 
     $add_args = [];
-    $add_args['post_type'] = 'product';
-
     if ( '' !== $search_term ) {
         $add_args['s'] = $search_term;
     }
