@@ -375,6 +375,18 @@ function gm2_search_get_request_var( $key ) {
  * @param string $key Query parameter key.
  * @return array<int>
  */
+function gm2_search_get_request_var( $key ) {
+    if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        return wp_unslash( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
+
+    if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        return wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    }
+
+    return null;
+}
+
 function gm2_search_get_request_ids( $key ) {
     $raw = gm2_search_get_request_var( $key );
 
@@ -388,6 +400,29 @@ function gm2_search_get_request_ids( $key ) {
     $parts = array_filter( $parts );
 
     return array_values( $parts );
+}
+
+/**
+ * Retrieve post types provided in the current request or query vars.
+ *
+ * @return array<int, string>
+ */
+function gm2_search_get_request_post_types() {
+    $post_types = gm2_search_get_request_var( 'post_type' );
+
+    if ( null === $post_types && get_query_var( 'post_type' ) ) {
+        $post_types = get_query_var( 'post_type' );
+    }
+
+    $post_types = array_map( 'sanitize_key', (array) $post_types );
+    $post_types = array_filter(
+        $post_types,
+        static function ( $post_type ) {
+            return ! empty( $post_type ) && post_type_exists( $post_type );
+        }
+    );
+
+    return array_values( array_unique( $post_types ) );
 }
 
 /**
@@ -543,6 +578,26 @@ function gm2_search_populate_query_from_request( $query ) {
         if ( $is_main_query ) {
             set_query_var( 'post_type', $post_types );
         }
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        if ( $is_main_query ) {
+            set_query_var( 'post_type', $post_types );
+        }
+    }
+
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
+        $post_types = [ 'product' ];
+    }
+
+    if ( 1 === count( $post_types ) ) {
+        $single_post_type = reset( $post_types );
+        $query->set( 'post_type', $single_post_type );
+        set_query_var( 'post_type', $single_post_type );
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        set_query_var( 'post_type', $post_types );
     }
 
     $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
@@ -584,14 +639,16 @@ function gm2_search_populate_query_from_request( $query ) {
         $query->set( 'tax_query', $tax_query );
     }
 
-    $filter_category_slugs = gm2_search_get_request_slugs( 'gm2_category_filter' );
-    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_taxonomy ) ) {
-        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_taxonomy );
+    $category_filter_taxonomy = gm2_search_get_request_taxonomy( 'gm2_category_taxonomy', 'category' );
+    $filter_category_slugs    = gm2_search_get_request_slugs( 'gm2_category_filter' );
+
+    if ( ! empty( $filter_category_slugs ) && taxonomy_exists( $category_filter_taxonomy ) ) {
+        $filter_category_ids = gm2_search_get_term_ids_from_slugs( $filter_category_slugs, $category_filter_taxonomy );
 
         if ( ! empty( $filter_category_ids ) ) {
             $tax_query   = (array) $query->get( 'tax_query' );
             $tax_query[] = [
-                'taxonomy' => $category_taxonomy,
+                'taxonomy' => $category_filter_taxonomy,
                 'field'    => 'term_id',
                 'terms'    => $filter_category_ids,
                 'operator' => 'IN',
@@ -606,6 +663,7 @@ function gm2_search_populate_query_from_request( $query ) {
 
     if ( $date_range ) {
         $date_query = gm2_search_build_date_query( $date_range );
+
         if ( $date_query ) {
             $query->set( 'date_query', [ $date_query ] );
         }
@@ -691,6 +749,80 @@ function gm2_search_apply_query_parameters( $query ) {
     gm2_search_populate_query_from_request( $query );
 }
 add_action( 'pre_get_posts', 'gm2_search_apply_query_parameters' );
+
+function gm2_search_request_has_filters() {
+    if ( '' !== gm2_search_get_request_search_term() ) {
+        return true;
+    }
+
+    $filter_keys = [
+        'gm2_include_posts',
+        'gm2_exclude_posts',
+        'gm2_include_categories',
+        'gm2_exclude_categories',
+        'gm2_category_filter',
+        'gm2_date_range',
+        'gm2_orderby',
+        'gm2_order',
+        'gm2_query_id',
+    ];
+
+    foreach ( $filter_keys as $key ) {
+        $value = gm2_search_get_request_var( $key );
+
+        if ( is_array( $value ) ) {
+            if ( ! empty( $value ) ) {
+                return true;
+            }
+            continue;
+        }
+
+        if ( is_string( $value ) && '' !== trim( $value ) ) {
+            return true;
+        }
+    }
+
+    $raw_post_type = gm2_search_get_request_var( 'post_type' );
+
+    if ( null === $raw_post_type ) {
+        return false;
+    }
+
+    $post_types = array_map( 'sanitize_key', (array) $raw_post_type );
+
+    return ! empty( array_filter( $post_types ) );
+}
+
+function gm2_search_apply_secondary_product_queries( $query ) {
+    if ( is_admin() || $query->is_main_query() ) {
+        return;
+    }
+
+    if ( ! gm2_search_request_has_filters() ) {
+        return;
+    }
+
+    $post_type = $query->get( 'post_type' );
+
+    if ( empty( $post_type ) ) {
+        $post_type = gm2_search_get_request_post_types();
+    }
+
+    $post_types = (array) $post_type;
+
+    if ( empty( $post_types ) ) {
+        return;
+    }
+
+    $post_types = array_map( 'sanitize_key', $post_types );
+
+    if ( ! in_array( 'product', $post_types, true ) ) {
+        return;
+    }
+
+    gm2_search_populate_query_from_request( $query );
+}
+add_action( 'pre_get_posts', 'gm2_search_apply_secondary_product_queries', 11 );
 
 /**
  * Determine whether the current request includes any GM2 filters.
@@ -971,6 +1103,216 @@ function gm2_search_merge_paginate_links_args( $args ) {
     return $args;
 }
 add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
+
+/**
+ * Append the active search arguments to pagination markup emitted directly by paginate_links().
+ *
+ * Some themes filter the output HTML instead of relying on the add_args parameter, which can drop
+ * the Gm2-specific query vars. We rewrite the href attributes so every generated link keeps the
+ * current search context.
+ *
+ * @param string|array<int, string> $links Pagination output.
+ * @return string|array<int, string>
+ */
+function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
+    if ( is_admin() ) {
+        return $links;
+    }
+
+    $query_args = gm2_search_get_active_query_args();
+
+    if ( empty( $query_args ) ) {
+        return $links;
+    }
+
+    $charset      = get_bloginfo( 'charset' );
+    $query_keys   = array_keys( $query_args );
+    $looks_like_url = static function( $value ) {
+        if ( ! is_string( $value ) || '' === $value ) {
+            return false;
+        }
+
+        return false !== strpos( $value, ':' )
+            || false !== strpos( $value, '/' )
+            || false !== strpos( $value, '?' );
+    };
+
+    $rewrite_url = static function( $url ) use ( $query_args, $query_keys, $charset ) {
+        if ( ! is_string( $url ) || '' === $url ) {
+            return $url;
+        }
+
+        $decoded = html_entity_decode( $url, ENT_QUOTES, $charset );
+        $stripped = remove_query_arg( $query_keys, $decoded );
+        $updated  = add_query_arg( $query_args, $stripped );
+
+        return esc_url( $updated );
+    };
+
+    $rewrite_url_raw = static function( $url ) use ( $query_args, $query_keys, $charset ) {
+        if ( ! is_string( $url ) || '' === $url ) {
+            return $url;
+        }
+
+        $decoded = html_entity_decode( $url, ENT_QUOTES, $charset );
+        $stripped = remove_query_arg( $query_keys, $decoded );
+        $updated  = add_query_arg( $query_args, $stripped );
+
+        return esc_url_raw( $updated );
+    };
+
+    $rewrite_html = static function( $markup ) use ( $rewrite_url, $rewrite_url_raw, $looks_like_url, $charset ) {
+        if ( ! is_string( $markup ) || '' === $markup ) {
+            return $markup;
+        }
+
+        if ( false === strpos( $markup, 'href' ) && false === strpos( $markup, 'data-' ) ) {
+            return $markup;
+        }
+
+        $attribute_pattern = '/\b(href|data-[a-z0-9_-]*(?:href|url|link))=([\'\"])([^\'\"]*)\2/i';
+
+        $markup = preg_replace_callback(
+            $attribute_pattern,
+            static function( $matches ) use ( $rewrite_url, $charset ) {
+                $attribute = $matches[1];
+                $quote     = $matches[2];
+                $value     = $matches[3];
+
+                if ( '' === $value ) {
+                    return $matches[0];
+                }
+
+                $decoded_value = html_entity_decode( $value, ENT_QUOTES, $charset );
+
+                if (
+                    false === strpos( $decoded_value, ':' )
+                    && false === strpos( $decoded_value, '/' )
+                    && false === strpos( $decoded_value, '?' )
+                ) {
+                    return $matches[0];
+                }
+
+                $updated = $rewrite_url( $value );
+
+                if ( ! is_string( $updated ) || '' === $updated ) {
+                    return $matches[0];
+                }
+
+                return $attribute . '=' . $quote . $updated . $quote;
+            },
+            $markup
+        );
+
+        if ( false === strpos( $markup, 'data-settings' ) ) {
+            return $markup;
+        }
+
+        $settings_pattern = '/\bdata-settings=([\'\"])(.*?)\1/i';
+
+        return preg_replace_callback(
+            $settings_pattern,
+            static function( $matches ) use ( $rewrite_url_raw, $looks_like_url, $charset ) {
+                $quote        = $matches[1];
+                $encoded_json = $matches[2];
+                $decoded_json = html_entity_decode( $encoded_json, ENT_QUOTES, $charset );
+                $data         = json_decode( $decoded_json, true );
+
+                if ( ! is_array( $data ) ) {
+                    return $matches[0];
+                }
+
+                $updated = false;
+
+                array_walk_recursive(
+                    $data,
+                    static function( &$value ) use ( $rewrite_url_raw, $looks_like_url, &$updated ) {
+                        if ( ! is_string( $value ) || ! $looks_like_url( $value ) ) {
+                            return;
+                        }
+
+                        $rewritten = $rewrite_url_raw( $value );
+
+                        if ( is_string( $rewritten ) && '' !== $rewritten && $rewritten !== $value ) {
+                            $value   = $rewritten;
+                            $updated = true;
+                        }
+                    }
+                );
+
+                if ( ! $updated ) {
+                    return $matches[0];
+                }
+
+                $encoded = wp_json_encode( $data );
+
+                if ( false === $encoded ) {
+                    return $matches[0];
+                }
+
+                return 'data-settings=' . $quote . esc_attr( $encoded ) . $quote;
+            },
+            $markup
+        );
+    };
+
+    if ( is_array( $links ) ) {
+        foreach ( $links as $index => $markup ) {
+            $links[ $index ] = $rewrite_html( $markup );
+        }
+
+        return $links;
+    }
+
+    return $rewrite_html( $links );
+}
+add_filter( 'paginate_links', 'gm2_search_preserve_query_args_in_paginate_links_output', 10 );
+
+/**
+ * Ensure WooCommerce pagination arguments keep the active search filters.
+ *
+ * WooCommerce builds its own paginate_links() argument array and can override the add_args/base
+ * values we set elsewhere. We merge the current query vars into those values so product listings
+ * retain the user's filters when navigating between result pages.
+ *
+ * @param array<string, mixed> $args WooCommerce pagination arguments.
+ * @return array<string, mixed>
+ */
+function gm2_search_merge_woocommerce_pagination_args( $args ) {
+    if ( is_admin() ) {
+        return $args;
+    }
+
+    $query_args = gm2_search_get_active_query_args();
+
+    if ( empty( $query_args ) ) {
+        return $args;
+    }
+
+    if ( empty( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args;
+    } elseif ( is_array( $args['add_args'] ) ) {
+        $args['add_args'] = $query_args + $args['add_args'];
+    } elseif ( is_string( $args['add_args'] ) ) {
+        parse_str( $args['add_args'], $existing_args );
+        if ( ! is_array( $existing_args ) ) {
+            $existing_args = [];
+        }
+
+        $args['add_args'] = $query_args + $existing_args;
+    }
+
+    if ( ! empty( $args['base'] ) && is_string( $args['base'] ) ) {
+        $charset   = get_bloginfo( 'charset' );
+        $query_keys = array_keys( $query_args );
+        $decoded  = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
+        $stripped = remove_query_arg( $query_keys, $decoded );
+        $args['base'] = esc_url_raw( add_query_arg( $query_args, $stripped ) );
+    }
+
+    return $args;
+}
+add_filter( 'woocommerce_pagination_args', 'gm2_search_merge_woocommerce_pagination_args', 15 );
 
 /**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
