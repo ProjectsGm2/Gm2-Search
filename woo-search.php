@@ -386,6 +386,21 @@ function gm2_search_populate_query_from_request( $query ) {
         }
     }
 
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
+        $post_types = [ 'product' ];
+    }
+
+    if ( 1 === count( $post_types ) ) {
+        $single_post_type = reset( $post_types );
+        $query->set( 'post_type', $single_post_type );
+        set_query_var( 'post_type', $single_post_type );
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        set_query_var( 'post_type', $post_types );
+    }
+
     $include_posts = gm2_search_get_request_ids( 'gm2_include_posts' );
     if ( ! empty( $include_posts ) ) {
         $query->set( 'post__in', $include_posts );
