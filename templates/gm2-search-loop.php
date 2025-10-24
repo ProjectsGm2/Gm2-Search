@@ -9,6 +9,18 @@ get_header( 'shop' );
 
 global $wp_query;
 
+$render_state       = function_exists( 'gm2_search_get_results_template_render_state' ) ? gm2_search_get_results_template_render_state() : [ 'mode' => 'none', 'template_id' => 0 ];
+$is_layout_template = ( isset( $render_state['mode'], $render_state['template_id'] ) && 'layout' === $render_state['mode'] && $render_state['template_id'] );
+$layout_content     = '';
+
+if ( $is_layout_template && function_exists( 'gm2_search_render_elementor_results_layout' ) ) {
+    $layout_content = gm2_search_render_elementor_results_layout();
+
+    if ( '' === trim( (string) $layout_content ) ) {
+        $is_layout_template = false;
+    }
+}
+
 if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop() ) || have_posts() ) {
     $has_before_shop_loop = has_action( 'woocommerce_before_shop_loop' );
 
@@ -39,22 +51,30 @@ if ( ( function_exists( 'woocommerce_product_loop' ) && woocommerce_product_loop
 
     $gm2_loop_wrapper_started = false;
 
-    if ( function_exists( 'woocommerce_product_loop_start' ) ) {
-        woocommerce_product_loop_start();
+    if ( ! $is_layout_template ) {
+        if ( function_exists( 'woocommerce_product_loop_start' ) ) {
+            woocommerce_product_loop_start();
+        } else {
+            echo '<ul class="products">';
+            $gm2_loop_wrapper_started = true;
+        }
+    }
+
+    if ( $is_layout_template ) {
+        echo $layout_content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
     } else {
-        echo '<ul class="products">';
-        $gm2_loop_wrapper_started = true;
+        while ( have_posts() ) {
+            the_post();
+            gm2_search_render_product_card();
+        }
     }
 
-    while ( have_posts() ) {
-        the_post();
-        gm2_search_render_product_card();
-    }
-
-    if ( function_exists( 'woocommerce_product_loop_end' ) ) {
-        woocommerce_product_loop_end();
-    } elseif ( $gm2_loop_wrapper_started ) {
-        echo '</ul>';
+    if ( ! $is_layout_template ) {
+        if ( function_exists( 'woocommerce_product_loop_end' ) ) {
+            woocommerce_product_loop_end();
+        } elseif ( $gm2_loop_wrapper_started ) {
+            echo '</ul>';
+        }
     }
 
     do_action( 'woocommerce_after_shop_loop' );
