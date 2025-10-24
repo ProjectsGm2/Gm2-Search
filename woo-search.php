@@ -1781,6 +1781,10 @@ function gm2_get_filter_products() {
     if ( '' !== $taxonomy_value ) {
         $add_args['gm2_category_taxonomy'] = $taxonomy_value;
     }
+    $results_template_id = gm2_search_get_request_results_template_id();
+    if ( $results_template_id ) {
+        $add_args['gm2_results_template_id'] = $results_template_id;
+    }
 
     $pagination = paginate_links(
         [
