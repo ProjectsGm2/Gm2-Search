@@ -186,6 +186,128 @@ function woo_search_opt_groupby( $groupby, $wp_query ) {
 add_filter('posts_groupby', 'woo_search_opt_groupby', 20, 2);
 
 /**
+ * Normalise mixed Elementor AJAX payload values into arrays when possible.
+ *
+ * Elementor pagination requests often embed query vars as JSON or query strings
+ * inside other parameters. This helper recursively expands those structures so
+ * we can look up GM2 search keys reliably.
+ *
+ * @param mixed $payload Raw request payload value.
+ * @return mixed Normalised payload.
+ */
+function gm2_search_maybe_decode_request_payload( $payload ) {
+    if ( is_object( $payload ) ) {
+        $payload = get_object_vars( $payload );
+    }
+
+    if ( is_array( $payload ) ) {
+        foreach ( $payload as $index => $value ) {
+            $payload[ $index ] = gm2_search_maybe_decode_request_payload( $value );
+        }
+
+        return $payload;
+    }
+
+    if ( ! is_string( $payload ) ) {
+        return $payload;
+    }
+
+    $trimmed = trim( $payload );
+
+    if ( '' === $trimmed ) {
+        return $payload;
+    }
+
+    $first_character = substr( $trimmed, 0, 1 );
+    $last_character  = substr( $trimmed, -1 );
+
+    if (
+        ( '{' === $first_character && '}' === $last_character )
+        || ( '[' === $first_character && ']' === $last_character )
+    ) {
+        $decoded = json_decode( $trimmed, true );
+
+        if ( is_array( $decoded ) ) {
+            return gm2_search_maybe_decode_request_payload( $decoded );
+        }
+    }
+
+    if ( false !== strpos( $trimmed, '=' ) ) {
+        parse_str( $payload, $parsed );
+
+        if ( is_array( $parsed ) && ! empty( $parsed ) ) {
+            return gm2_search_maybe_decode_request_payload( $parsed );
+        }
+    }
+
+    return $payload;
+}
+
+/**
+ * Recursively locate a GM2 request value within a decoded payload tree.
+ *
+ * @param mixed  $payload Normalised payload value.
+ * @param string $key     Requested key.
+ * @return mixed|null     Matching value if found.
+ */
+function gm2_search_find_in_request_payload( $payload, $key ) {
+    if ( is_array( $payload ) ) {
+        if ( array_key_exists( $key, $payload ) ) {
+            return $payload[ $key ];
+        }
+
+        foreach ( $payload as $value ) {
+            $found = gm2_search_find_in_request_payload( $value, $key );
+
+            if ( null !== $found ) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    if ( is_object( $payload ) ) {
+        return gm2_search_find_in_request_payload( get_object_vars( $payload ), $key );
+    }
+
+    if ( is_string( $payload ) ) {
+        $decoded = gm2_search_maybe_decode_request_payload( $payload );
+
+        if ( $decoded !== $payload ) {
+            return gm2_search_find_in_request_payload( $decoded, $key );
+        }
+    }
+
+    return null;
+}
+
+function gm2_search_get_request_var( $key ) {
+    if ( isset( $_GET[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        return wp_unslash( $_GET[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
+
+    if ( isset( $_POST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        return wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    }
+
+    foreach ( $_POST as $request_key => $value ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if ( $request_key === $key ) {
+            continue;
+        }
+
+        $decoded_value = gm2_search_maybe_decode_request_payload( wp_unslash( $value ) );
+        $found         = gm2_search_find_in_request_payload( $decoded_value, $key );
+
+        if ( null !== $found ) {
+            return $found;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Parse a comma or space separated list of IDs from a query variable.
  *
  * @param string $key Query parameter key.
@@ -378,6 +500,11 @@ function gm2_search_populate_query_from_request( $query ) {
         $query->set( 'post_type', $single_post_type );
         if ( $is_main_query ) {
             set_query_var( 'post_type', $single_post_type );
+        }
+    } elseif ( ! empty( $post_types ) ) {
+        $query->set( 'post_type', $post_types );
+        if ( $is_main_query ) {
+            set_query_var( 'post_type', $post_types );
         }
     } elseif ( ! empty( $post_types ) ) {
         $query->set( 'post_type', $post_types );
