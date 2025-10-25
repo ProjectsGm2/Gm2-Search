@@ -840,6 +840,58 @@ function gm2_search_render_elementor_results_layout() {
 }
 
 /**
+ * Load the selected search results template for paginated requests.
+ *
+ * When a search request specifies a custom results template ID we attempt to
+ * load the associated page template. If none is defined we fall back to the
+ * bundled Gm2 results template so pagination retains the customised layout.
+ *
+ * @param string $template Absolute path to the resolved template file.
+ * @return string
+ */
+function gm2_search_maybe_load_results_template( $template ) {
+    if ( is_admin() || gm2_search_is_backend_context() ) {
+        return $template;
+    }
+
+    if ( ! is_search() ) {
+        return $template;
+    }
+
+    $template_id = gm2_search_get_active_results_template_id();
+
+    if ( ! $template_id ) {
+        return $template;
+    }
+
+    $page_template = get_page_template_slug( $template_id );
+
+    if ( ! $page_template ) {
+        $meta_template = get_post_meta( $template_id, '_wp_page_template', true );
+        $page_template = is_string( $meta_template ) ? $meta_template : '';
+    }
+
+    $page_template = is_string( $page_template ) ? trim( $page_template ) : '';
+
+    if ( $page_template && 'default' !== $page_template ) {
+        $located = locate_template( $page_template );
+
+        if ( $located ) {
+            return $located;
+        }
+    }
+
+    $plugin_template = plugin_dir_path( __FILE__ ) . 'templates/gm2-search-loop.php';
+
+    if ( file_exists( $plugin_template ) ) {
+        return $plugin_template;
+    }
+
+    return $template;
+}
+add_filter( 'template_include', 'gm2_search_maybe_load_results_template', 99 );
+
+/**
  * Convert a preset date range slug into a WP_Query-compatible date query.
  *
  * @param string $range Range slug.
@@ -1908,6 +1960,28 @@ function gm2_get_filter_products() {
     $results_template_id = gm2_search_get_request_results_template_id();
     if ( $results_template_id ) {
         $add_args['gm2_results_template_id'] = $results_template_id;
+    }
+
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && ! empty( $query_args['post_type'] ) ) {
+        $post_types = array_map( 'sanitize_key', (array) $query_args['post_type'] );
+        $post_types = array_filter(
+            $post_types,
+            static function ( $post_type ) {
+                return ! empty( $post_type ) && post_type_exists( $post_type );
+            }
+        );
+    }
+
+    if ( ! empty( $post_types ) ) {
+        $post_types = array_values( array_unique( $post_types ) );
+
+        if ( 1 === count( $post_types ) ) {
+            $add_args['post_type'] = reset( $post_types );
+        } else {
+            $add_args['post_type'] = $post_types;
+        }
     }
 
     $pagination = paginate_links(
