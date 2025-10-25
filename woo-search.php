@@ -567,18 +567,32 @@ function gm2_search_get_term_ids_from_slugs( $slugs, $taxonomy ) {
  * @return string
  */
 function gm2_search_get_request_taxonomy( $key, $default = 'category' ) {
-    $raw = gm2_search_get_request_var( $key );
+    $raw          = gm2_search_get_request_var( $key );
     $raw_taxonomy = is_string( $raw ) ? sanitize_key( $raw ) : '';
 
     if ( $raw_taxonomy && taxonomy_exists( $raw_taxonomy ) ) {
         return $raw_taxonomy;
     }
 
+    $post_types = gm2_search_get_request_post_types();
+
+    if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
+        $post_types = [ 'product' ];
+    }
+
+    if ( in_array( 'product', $post_types, true ) && taxonomy_exists( 'product_cat' ) ) {
+        return 'product_cat';
+    }
+
     if ( $default && taxonomy_exists( $default ) ) {
         return $default;
     }
 
-    return 'category';
+    if ( taxonomy_exists( 'category' ) ) {
+        return 'category';
+    }
+
+    return $default ? $default : 'category';
 }
 
 /**
@@ -1656,11 +1670,12 @@ function gm2_search_merge_paginate_links_args( $args ) {
 add_filter( 'paginate_links_args', 'gm2_search_merge_paginate_links_args' );
 
 /**
- * Append the active search arguments to pagination markup emitted directly by paginate_links().
+ * Append the active search arguments to pagination output emitted directly by paginate_links().
  *
  * Some themes filter the output HTML instead of relying on the add_args parameter, which can drop
  * the Gm2-specific query vars. We rewrite the href attributes so every generated link keeps the
- * current search context.
+ * current search context. When paginate_links() is filtered to return raw URLs instead of anchor
+ * markup we also normalise those values so the arguments persist across page loads.
  *
  * @param string|array<int, string> $links Pagination output.
  * @return string|array<int, string>
@@ -1688,21 +1703,43 @@ function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
     };
 
     $rewrite_html = static function( $markup ) use ( $rewrite_url ) {
-        if ( ! is_string( $markup ) || '' === $markup || false === strpos( $markup, 'href=' ) ) {
+        if ( ! is_string( $markup ) || '' === $markup ) {
             return $markup;
         }
 
-        return preg_replace_callback(
-            "/href=(['\"])([^'\"]*)\\1/",
-            static function( $matches ) use ( $rewrite_url ) {
-                $quote   = $matches[1];
-                $url     = $matches[2];
-                $updated = $rewrite_url( $url );
+        if ( false !== strpos( $markup, 'href=' ) ) {
+            return preg_replace_callback(
+                "/href=(['\"])([^'\"]*)\\1/",
+                static function( $matches ) use ( $rewrite_url ) {
+                    $quote   = $matches[1];
+                    $url     = $matches[2];
+                    $updated = $rewrite_url( $url );
 
-                return 'href=' . $quote . $updated . $quote;
-            },
-            $markup
-        );
+                    return 'href=' . $quote . $updated . $quote;
+                },
+                $markup
+            );
+        }
+
+        if ( false !== strpos( $markup, '<' ) ) {
+            return $markup;
+        }
+
+        $trimmed = trim( $markup );
+
+        if ( '' === $trimmed ) {
+            return $markup;
+        }
+
+        $parsed = wp_parse_url( $trimmed );
+
+        if ( false === $parsed && ! preg_match( '#[/?=]#', $trimmed ) ) {
+            return $markup;
+        }
+
+        $updated = $rewrite_url( $trimmed );
+
+        return is_string( $updated ) ? $updated : $markup;
     };
 
     if ( is_array( $links ) ) {
