@@ -1927,44 +1927,53 @@ add_action( 'wp_ajax_gm2_get_filter_products', 'gm2_get_filter_products' );
 add_action( 'wp_ajax_nopriv_gm2_get_filter_products', 'gm2_get_filter_products' );
 
 /**
- * Force the custom search loop template to load for product searches so the custom card is consistent.
+ * Normalise incoming request variables so native search handlers receive the query.
  *
- * @param string $template Template path resolved by WordPress.
- * @return string
+ * @param array<string, mixed> $vars Parsed request variables.
+ * @return array<string, mixed>
  */
-function gm2_search_use_custom_search_template( $template ) {
-    if ( gm2_search_is_backend_context() || is_admin() || ! function_exists( 'is_search' ) || ! is_search() ) {
-        return $template;
-    }
-
-    $post_types = gm2_search_get_request_post_types();
-
-    if ( empty( $post_types ) ) {
-        $queried = get_query_var( 'post_type' );
-        if ( $queried ) {
-            $post_types = (array) $queried;
+function gm2_search_normalize_request_query_vars( $vars ) {
+    if ( isset( $vars['gm2_q'] ) ) {
+        if ( ! isset( $vars['s'] ) ) {
+            $vars['s'] = sanitize_text_field( $vars['gm2_q'] );
         }
+
+        unset( $vars['gm2_q'] );
     }
 
-    if ( empty( $post_types ) ) {
-        $post_types = [ 'product' ];
-    }
-
-    $post_types = array_unique( array_map( 'sanitize_key', (array) $post_types ) );
-
-    if ( 1 !== count( $post_types ) || 'product' !== reset( $post_types ) ) {
-        return $template;
-    }
-
-    $custom_template = plugin_dir_path( __FILE__ ) . 'templates/gm2-search-loop.php';
-
-    if ( file_exists( $custom_template ) ) {
-        return $custom_template;
-    }
-
-    return $template;
+    return $vars;
 }
-add_filter( 'template_include', 'gm2_search_use_custom_search_template', 40 );
+add_filter( 'request', 'gm2_search_normalize_request_query_vars' );
+
+/**
+ * Ensure the main search query behaves like a WooCommerce product archive so Elementor templates apply.
+ *
+ * @param WP_Query $query Query instance.
+ * @return void
+ */
+function gm2_search_prepare_main_query( $query ) {
+    if ( is_admin() || gm2_search_is_backend_context() || ! $query instanceof WP_Query || ! $query->is_main_query() ) {
+        return;
+    }
+
+    if ( ! $query->is_search() ) {
+        return;
+    }
+
+    $post_types = (array) $query->get( 'post_type' );
+
+    if ( empty( $post_types ) || in_array( 'post', $post_types, true ) ) {
+        $query->set( 'post_type', [ 'product' ] );
+    }
+
+    $query->set( 'wc_query', 'product_query' );
+
+    if ( ! $query->get( 'posts_per_page' ) ) {
+        $posts_per_page = (int) get_option( 'posts_per_page', 12 );
+        $query->set( 'posts_per_page', max( $posts_per_page, 12 ) );
+    }
+}
+add_action( 'pre_get_posts', 'gm2_search_prepare_main_query' );
 
 /**
  * Register the Gm2 Search Bar Elementor widget, cloning the default Elementor search widget.
