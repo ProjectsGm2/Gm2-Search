@@ -1403,6 +1403,107 @@ function gm2_search_get_active_query_args() {
 }
 
 /**
+ * Inject a set of query arguments into a URL while keeping pagination placeholders intact when requested.
+ *
+ * @param string               $url                  Base URL.
+ * @param array<string, mixed> $query_args           Query arguments to apply.
+ * @param bool                 $preserve_placeholder Whether the `%_%` placeholder should be retained.
+ * @param bool                 $strip_page_vars      Whether existing page arguments should be removed.
+ * @return string
+ */
+function gm2_search_normalize_query_args_for_url( $url, array $query_args, $preserve_placeholder = false, $strip_page_vars = true ) {
+    if ( ! is_string( $url ) || '' === $url ) {
+        return $url;
+    }
+
+    $placeholder_token   = 'gm2_search_placeholder_' . md5( __FUNCTION__ );
+    $placeholder_present = $preserve_placeholder && false !== strpos( $url, '%_%' );
+
+    if ( $placeholder_present ) {
+        $url = str_replace( '%_%', $placeholder_token, $url );
+    }
+
+    $charset    = get_bloginfo( 'charset' );
+    $decoded    = html_entity_decode( $url, ENT_QUOTES, $charset );
+    $strip_keys = array_keys( $query_args );
+
+    if ( $strip_page_vars ) {
+        $strip_keys[] = 'paged';
+        $strip_keys[] = 'page';
+    }
+
+    $strip_keys = array_unique( array_filter( $strip_keys ) );
+
+    if ( ! empty( $strip_keys ) ) {
+        $stripped = remove_query_arg( $strip_keys, $decoded );
+    } else {
+        $stripped = $decoded;
+    }
+
+    $stripped = rtrim( $stripped, '?' );
+
+    if ( empty( $query_args ) ) {
+        $updated = $stripped;
+    } else {
+        $updated = add_query_arg( $query_args, $stripped );
+    }
+
+    $updated = rtrim( $updated, '?' );
+
+    if ( $placeholder_present ) {
+        $updated = str_replace( $placeholder_token, '%_%', $updated );
+
+        if ( false === strpos( $updated, '%_%' ) ) {
+            $updated .= '%_%';
+        }
+    }
+
+    return $updated;
+}
+
+/**
+ * Normalise a pagination link so it retains the supplied query arguments.
+ *
+ * @param string               $url        Pagination link URL.
+ * @param array<string, mixed> $query_args Query arguments to preserve.
+ * @return string
+ */
+function gm2_search_normalize_pagination_link( $url, array $query_args ) {
+    if ( ! is_string( $url ) ) {
+        return $url;
+    }
+
+    $trimmed = trim( $url );
+
+    if ( '' === $trimmed || '#' === $trimmed || 0 === stripos( $trimmed, 'javascript:' ) ) {
+        return $url;
+    }
+
+    return gm2_search_normalize_query_args_for_url( $url, $query_args, false, false );
+}
+
+/**
+ * Build a pagination base/format pairing that keeps active search parameters.
+ *
+ * @param array<string, mixed> $query_args Query arguments to preserve.
+ * @return array{base: string, format: string}
+ */
+function gm2_search_get_default_pagination_structure( array $query_args ) {
+    $base = gm2_search_normalize_query_args_for_url( get_pagenum_link( 1 ), $query_args, true, true );
+
+    if ( false === strpos( $base, '%_%' ) ) {
+        $base = rtrim( $base, '?' ) . '%_%';
+    }
+
+    $delimiter = false === strpos( $base, '?' ) ? '?' : '&';
+
+    return [
+        'base'   => $base,
+        'format' => $delimiter . 'paged=%#%',
+    ];
+}
+
+/**
  * Append active Gm2 query arguments to pagination links so filters persist across pages.
  *
  * @param string $result Generated pagination URL.
@@ -1436,7 +1537,7 @@ function gm2_search_preserve_query_args_in_pagination( $result, $pagenum, $escap
         return $result;
     }
 
-    $updated = add_query_arg( $args, $result );
+    $updated = gm2_search_normalize_pagination_link( $result, $args );
 
     gm2_search_log_event(
         'debug',
@@ -1488,6 +1589,18 @@ function gm2_search_merge_paginate_links_args( $args ) {
             'active_args'   => $query_args,
         ]
     );
+
+    $structure = gm2_search_get_default_pagination_structure( $query_args );
+
+    if ( empty( $args['base'] ) ) {
+        $args['base'] = $structure['base'];
+    } else {
+        $args['base'] = gm2_search_normalize_query_args_for_url( $args['base'], $query_args, true, true );
+    }
+
+    if ( empty( $args['format'] ) ) {
+        $args['format'] = $structure['format'];
+    }
 
     if ( empty( $args['add_args'] ) ) {
         $args['add_args'] = $query_args;
@@ -1568,18 +1681,10 @@ function gm2_search_preserve_query_args_in_paginate_links_output( $links ) {
         return $links;
     }
 
-    $charset     = get_bloginfo( 'charset' );
-    $query_keys  = array_keys( $query_args );
-    $rewrite_url = static function( $url ) use ( $query_args, $query_keys, $charset ) {
-        if ( ! is_string( $url ) || '' === $url ) {
-            return $url;
-        }
+    $rewrite_url = static function( $url ) use ( $query_args ) {
+        $updated = gm2_search_normalize_pagination_link( $url, $query_args );
 
-        $decoded = html_entity_decode( $url, ENT_QUOTES, $charset );
-        $stripped = remove_query_arg( $query_keys, $decoded );
-        $updated  = add_query_arg( $query_args, $stripped );
-
-        return esc_url( $updated );
+        return is_string( $updated ) ? esc_url( $updated ) : $updated;
     };
 
     $rewrite_html = static function( $markup ) use ( $rewrite_url ) {
@@ -1666,6 +1771,22 @@ function gm2_search_merge_woocommerce_pagination_args( $args ) {
         ]
     );
 
+    $structure = gm2_search_get_default_pagination_structure( $query_args );
+
+    if ( empty( $args['base'] ) ) {
+        $args['base'] = $structure['base'];
+    } elseif ( is_string( $args['base'] ) ) {
+        $args['base'] = gm2_search_normalize_query_args_for_url( $args['base'], $query_args, true, true );
+    }
+
+    if ( isset( $args['base'] ) && is_string( $args['base'] ) ) {
+        $args['base'] = esc_url_raw( $args['base'] );
+    }
+
+    if ( empty( $args['format'] ) ) {
+        $args['format'] = $structure['format'];
+    }
+
     if ( empty( $args['add_args'] ) ) {
         $args['add_args'] = $query_args;
     } elseif ( is_array( $args['add_args'] ) ) {
@@ -1677,14 +1798,6 @@ function gm2_search_merge_woocommerce_pagination_args( $args ) {
         }
 
         $args['add_args'] = $query_args + $existing_args;
-    }
-
-    if ( ! empty( $args['base'] ) && is_string( $args['base'] ) ) {
-        $charset   = get_bloginfo( 'charset' );
-        $query_keys = array_keys( $query_args );
-        $decoded  = html_entity_decode( $args['base'], ENT_QUOTES, $charset );
-        $stripped = remove_query_arg( $query_keys, $decoded );
-        $args['base'] = esc_url_raw( add_query_arg( $query_args, $stripped ) );
     }
 
     gm2_search_log_event(

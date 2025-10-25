@@ -57,7 +57,11 @@ $render_pagination = static function ( $current_page, $total_pages ) {
         'next_text' => __( 'Next »', 'woo-search-optimized' ),
     ];
 
-    if ( ! empty( $add_args ) ) {
+    if ( function_exists( 'gm2_search_get_default_pagination_structure' ) ) {
+        $structure = gm2_search_get_default_pagination_structure( $add_args );
+        $pagination_args['base']   = $structure['base'];
+        $pagination_args['format'] = $structure['format'];
+    } elseif ( ! empty( $add_args ) ) {
         $pagination_args['add_args'] = $add_args;
     }
 
