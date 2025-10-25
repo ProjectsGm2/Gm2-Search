@@ -236,16 +236,6 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         );
 
         $this->add_control(
-            'query_var',
-            [
-                'label' => __( 'Query Variable', 'woo-search-optimized' ),
-                'type' => Controls_Manager::TEXT,
-                'default' => 's',
-                'description' => __( 'The query string variable to use when submitting the search form.', 'woo-search-optimized' ),
-            ]
-        );
-
-        $this->add_control(
             'search_post_type',
             [
                 'label' => __( 'Post Type', 'woo-search-optimized' ),
@@ -1201,10 +1191,13 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
     protected function render() {
         $settings = $this->get_settings_for_display();
 
-        $query_var   = ! empty( $settings['query_var'] ) ? sanitize_key( $settings['query_var'] ) : 's';
+        $query_var   = 's';
         $placeholder = isset( $settings['placeholder'] ) ? $settings['placeholder'] : '';
-        $post_type   = ! empty( $settings['search_post_type'] ) ? $settings['search_post_type'] : '';
-        $selected_post_types = $this->prepare_post_types_for_render( isset( $settings['query_source'] ) ? $settings['query_source'] : [] );
+        if ( '' === trim( (string) $placeholder ) ) {
+            $placeholder = __( 'Search products…', 'woo-search-optimized' );
+        }
+        $post_type   = 'product';
+        $selected_post_types = [ 'product' ];
         $include_post_ids = $this->parse_ids_setting( isset( $settings['include_posts'] ) ? $settings['include_posts'] : '' );
         $exclude_post_ids = $this->parse_ids_setting( isset( $settings['exclude_posts'] ) ? $settings['exclude_posts'] : '' );
         $include_category_ids = $this->parse_select_setting( isset( $settings['include_categories'] ) ? $settings['include_categories'] : [] );
@@ -1393,13 +1386,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                         </span>
                     </button>
                 <?php endif; ?>
-                <?php if ( ! empty( $selected_post_types ) ) : ?>
-                    <?php foreach ( $selected_post_types as $selected_post_type ) : ?>
-                        <input type="hidden" name="post_type[]" value="<?php echo esc_attr( $selected_post_type ); ?>" />
-                    <?php endforeach; ?>
-                <?php elseif ( ! empty( $post_type ) ) : ?>
-                    <input type="hidden" name="post_type" value="<?php echo esc_attr( $post_type ); ?>" />
-                <?php endif; ?>
+                <input type="hidden" name="post_type" value="product" />
                 <?php if ( ! empty( $include_post_ids ) ) : ?>
                     <input type="hidden" name="gm2_include_posts" value="<?php echo esc_attr( implode( ',', $include_post_ids ) ); ?>" />
                 <?php endif; ?>
@@ -1439,7 +1426,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
     protected function content_template() {
         ?>
         <#
-        const queryVar = settings.query_var ? settings.query_var : 's';
+        const queryVar = 's';
         const submitTrigger = settings.submit_trigger ? settings.submit_trigger : 'click_submit';
         const showButtonSetting = 'yes' === settings.show_submit_button;
         const showButton = showButtonSetting && 'key_enter' !== submitTrigger;
@@ -1449,6 +1436,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
         const categoryMultiSelect = 'yes' === settings.category_filter_multi_select;
         const categoryPlaceholder = settings.category_filter_placeholder ? settings.category_filter_placeholder : '<?php echo esc_js( __( 'All categories', 'woo-search-optimized' ) ); ?>';
         const categoryData = <?php echo wp_json_encode( $this->get_category_data_map() ); ?>;
+        const placeholderText = settings.placeholder && settings.placeholder.trim().length ? settings.placeholder : '<?php echo esc_js( __( 'Search products…', 'woo-search-optimized' ) ); ?>';
         const parseMultiValue = function( value ) {
             if ( Array.isArray( value ) ) {
                 return value;
@@ -1478,7 +1466,6 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             'elementor-search-form--skin-' + settings.skin,
         ];
 
-        const sourcePostTypes = parseMultiValue( settings.query_source );
         const includeCategoriesValue = parseMultiValue( settings.include_categories ).join( ',' );
         const excludeCategoriesValue = parseMultiValue( settings.exclude_categories ).join( ',' );
         const includePostsValue = settings.include_posts ? settings.include_posts : '';
@@ -1522,7 +1509,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
             buttonClasses.push( 'elementor-search-form__submit--text-icon' );
             buttonClasses.push( 'after' === settings.icon_position ? 'elementor-align-icon-right' : 'elementor-align-icon-left' );
         }
-        const ariaLabel = settings.button_text ? settings.button_text : settings.placeholder;
+        const ariaLabel = settings.button_text ? settings.button_text : placeholderText;
         const categorySelectId = 'gm2-search-category-' + view.getID();
         const categoryToggleId = categorySelectId + '-toggle';
         const categoryDropdownId = categorySelectId + '-dropdown';
@@ -1581,7 +1568,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                         <# } #>
                     </div>
                 <# } #>
-                <input class="elementor-search-form__input" type="search" name="{{ queryVar }}" placeholder="{{{ settings.placeholder }}}" value="" />
+                <input class="elementor-search-form__input" type="search" name="{{ queryVar }}" placeholder="{{{ placeholderText }}}" value="" />
                 <# if ( showButton ) { #>
                     <button class="{{ buttonClasses.join( ' ' ) }}" type="submit" aria-label="{{ ariaLabel }}">
                         <span class="elementor-search-form__button-content">
@@ -1607,13 +1594,7 @@ class Gm2_Search_Elementor_Widget extends Widget_Base {
                         </span>
                     </button>
                 <# } #>
-                <# if ( sourcePostTypes.length ) { #>
-                    <# sourcePostTypes.forEach( function( postType ) { #>
-                        <input type="hidden" name="post_type[]" value="{{ postType }}" />
-                    <# } ); #>
-                <# } else if ( settings.search_post_type ) { #>
-                    <input type="hidden" name="post_type" value="{{ settings.search_post_type }}" />
-                <# } #>
+                <input type="hidden" name="post_type" value="product" />
                 <# if ( includePostsValue ) { #>
                     <input type="hidden" name="gm2_include_posts" value="{{ includePostsValue }}" />
                 <# } #>
