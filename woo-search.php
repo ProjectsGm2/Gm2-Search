@@ -883,6 +883,16 @@ function gm2_search_build_query_args_from_request( array $overrides = [] ) {
         'post_status' => 'publish',
     ];
 
+    $query_paged = max(
+        0,
+        absint( get_query_var( 'paged' ) ),
+        absint( get_query_var( 'page' ) )
+    );
+
+    if ( $query_paged > 0 ) {
+        $args['paged'] = max( 1, $query_paged );
+    }
+
     $post_types = gm2_search_get_request_post_types();
 
     if ( empty( $post_types ) && post_type_exists( 'product' ) ) {
@@ -1083,18 +1093,12 @@ function gm2_search_get_request_search_term() {
  * Apply query configuration provided by the Elementor widget.
  */
 function gm2_search_apply_query_parameters( $query ) {
-    if ( is_admin() || ! $query->is_main_query() ) {
+    if ( is_admin() || gm2_search_is_backend_context() || ! $query instanceof WP_Query || ! $query->is_main_query() ) {
         return;
     }
 
     if ( ! $query->is_search() ) {
-        $search_term = gm2_search_get_request_search_term();
-
-        if ( '' === $search_term ) {
-            return;
-        }
-
-        $query->set( 's', $search_term );
+        return;
     }
 
     gm2_search_populate_query_from_request( $query );
@@ -1965,6 +1969,15 @@ function gm2_search_prepare_main_query( $query ) {
     if ( empty( $post_types ) || in_array( 'post', $post_types, true ) ) {
         $query->set( 'post_type', [ 'product' ] );
     }
+
+    $paged = max(
+        1,
+        absint( $query->get( 'paged' ) ),
+        absint( $query->get( 'page' ) ),
+        absint( get_query_var( 'paged' ) ),
+        absint( get_query_var( 'page' ) )
+    );
+    $query->set( 'paged', $paged );
 
     $query->set( 'wc_query', 'product_query' );
 
